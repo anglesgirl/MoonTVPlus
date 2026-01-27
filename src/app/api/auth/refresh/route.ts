@@ -72,30 +72,16 @@ export async function POST(request: NextRequest) {
   }
 
   const now = Date.now();
-  const accessTokenAge = now - authInfo.timestamp;
-  const remainingAccessTime = TOKEN_CONFIG.ACCESS_TOKEN_AGE - accessTokenAge;
-  const refreshWindow = 15 * 60 * 1000;
 
-  if (remainingAccessTime <= 0) {
-    return NextResponse.json(
-      { error: 'Access token expired' },
-      { status: 401 }
-    );
-  }
-
-  if (remainingAccessTime > refreshWindow) {
-    return NextResponse.json(
-      { error: 'Refresh not allowed' },
-      { status: 400 }
-    );
-  }
-
+  // 只检查 Refresh Token 是否过期
   if (now >= authInfo.refreshExpires) {
     return NextResponse.json(
       { error: 'Refresh token expired' },
       { status: 401 }
     );
   }
+
+  // 只要 Refresh Token 有效，就允许刷新（即使 Access Token 已过期）
 
   const newAuthData = await refreshAccessToken(
     authInfo.username,

@@ -48,15 +48,27 @@ export async function middleware(request: NextRequest) {
     return handleAuthFailure(request, pathname);
   }
 
-  // 验证 Access Token 时间戳
+  // 验证 Token 时间戳
   const ACCESS_TOKEN_AGE = TOKEN_CONFIG.ACCESS_TOKEN_AGE;
   const now = Date.now();
   const age = now - authInfo.timestamp;
 
-  // Access Token 已过期，前端负责刷新
-  if (age > ACCESS_TOKEN_AGE) {
-    console.log(`Access token expired for ${authInfo.username}, redirecting to login`);
+  // 先检查 Refresh Token 是否过期
+  if (now >= authInfo.refreshExpires) {
+    console.log(`Refresh token expired for ${authInfo.username}, redirecting to login`);
     return handleAuthFailure(request, pathname);
+  }
+
+  // Access Token 已过期
+  if (age > ACCESS_TOKEN_AGE) {
+    console.log(`Access token expired for ${authInfo.username}`);
+    // 对于 API 请求，返回 401，让前端拦截器刷新并重试
+    if (pathname.startsWith('/api')) {
+      return new NextResponse('Access token expired', { status: 401 });
+    }
+    // 对于页面请求，允许通过，让前端 TokenRefreshManager 在页面加载后刷新
+    // 不能返回 401 或重定向，否则页面无法加载，前端代码无法运行
+    console.log(`Allowing page request to pass, frontend will refresh token`);
   }
 
   // Access Token 未过期，验证签名

@@ -521,9 +521,25 @@ async function fetchWithAuth(
   url: string,
   options?: RequestInit
 ): Promise<Response> {
-  const res = await fetch(url, options);
-  if (!res.ok) {
-    // 如果是 401 未授权，跳转到登录页面
+  let res = await fetch(url, options);
+
+  // 如果是 401 且是 token 过期，尝试刷新并重试
+  if (res.status === 401) {
+    const text = await res.clone().text();
+    if (text === 'Access token expired') {
+      // 尝试刷新 token
+      const refreshRes = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (refreshRes.ok) {
+        // 刷新成功，重试原请求
+        res = await fetch(url, options);
+      }
+    }
+
+    // 如果刷新后仍然是 401，或者是其他 401 错误，跳转登录
     if (res.status === 401) {
       // 调用 logout 接口
       try {
@@ -540,8 +556,12 @@ async function fetchWithAuth(
       window.location.href = loginUrl.toString();
       throw new Error('用户未授权，已跳转到登录页面');
     }
+  }
+
+  if (!res.ok) {
     throw new Error(`请求 ${url} 失败: ${res.status}`);
   }
+
   return res;
 }
 

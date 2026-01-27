@@ -89,9 +89,9 @@ export function TokenRefreshManager() {
       const age = now - authInfo.timestamp;
       const remaining = ACCESS_TOKEN_AGE - age;
 
-      // 剩余时间 < 10 分钟时需要刷新
+      // 剩余时间 < 10 分钟时需要刷新（包括已过期的情况）
       const REFRESH_THRESHOLD = 10 * 60 * 1000; // 10 分钟
-      return remaining < REFRESH_THRESHOLD && remaining > 0;
+      return remaining < REFRESH_THRESHOLD;
     };
 
     // 保存原始 fetch
@@ -132,7 +132,7 @@ export function TokenRefreshManager() {
           // 刷新成功，重试原请求（仅此一次）
           response = await originalFetch(input, init);
 
-          // 如果重试后仍然是 401，说明有其他问题，不再重试
+          // 如果重试后仍然是 401，说明有问题，跳转登录
           if (response.status === 401) {
             console.error('[Token] Still 401 after refresh, redirecting to login');
             window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
