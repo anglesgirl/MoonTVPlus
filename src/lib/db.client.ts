@@ -527,6 +527,16 @@ async function fetchWithAuth(
   if (res.status === 401) {
     const text = await res.clone().text();
     if (text === 'Access token expired') {
+      // 检查是否是登录相关的接口，如果是则不刷新
+      if (
+        url.includes('/api/login') ||
+        url.includes('/api/register') ||
+        url.includes('/api/auth/oidc') ||
+        url.includes('/api/auth/refresh')
+      ) {
+        throw new Error('用户未授权');
+      }
+
       // 尝试刷新 token
       const refreshRes = await fetch('/api/auth/refresh', {
         method: 'POST',
@@ -541,19 +551,22 @@ async function fetchWithAuth(
 
     // 如果刷新后仍然是 401，或者是其他 401 错误，跳转登录
     if (res.status === 401) {
-      // 调用 logout 接口
-      try {
-        await fetch('/api/logout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-      } catch (error) {
-        console.error('注销请求失败:', error);
+      // 检查当前页面是否已经是登录页，避免重复跳转
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        // 调用 logout 接口
+        try {
+          await fetch('/api/logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          console.error('注销请求失败:', error);
+        }
+        const currentUrl = window.location.pathname + window.location.search;
+        const loginUrl = new URL('/login', window.location.origin);
+        loginUrl.searchParams.set('redirect', currentUrl);
+        window.location.href = loginUrl.toString();
       }
-      const currentUrl = window.location.pathname + window.location.search;
-      const loginUrl = new URL('/login', window.location.origin);
-      loginUrl.searchParams.set('redirect', currentUrl);
-      window.location.href = loginUrl.toString();
       throw new Error('用户未授权，已跳转到登录页面');
     }
   }
