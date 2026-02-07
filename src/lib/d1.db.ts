@@ -886,11 +886,35 @@ export class D1Storage implements IStorage {
         const ownerInfo = {
           role: 'owner' as const,
           banned: false,
-          created_at: 0,
-          playrecord_migrated: false,
-          favorite_migrated: false,
-          skip_migrated: false,
+          created_at: Date.now(),
+          playrecord_migrated: true,
+          favorite_migrated: true,
+          skip_migrated: true,
         };
+
+        // 为站长创建数据库记录
+        try {
+          await this.db
+            .prepare(`
+              INSERT INTO users (
+                username, password_hash, role, banned, created_at,
+                playrecord_migrated, favorite_migrated, skip_migrated
+              )
+              VALUES (?, ?, ?, 0, ?, 1, 1, 1)
+            `)
+            .bind(
+              userName,
+              '', // 站长不需要密码哈希
+              'owner',
+              ownerInfo.created_at
+            )
+            .run();
+          console.log(`Created database record for site owner: ${userName}`);
+        } catch (insertErr) {
+          console.error('Failed to create owner record:', insertErr);
+          // 即使插入失败，仍然返回默认信息
+        }
+
         // 缓存站长信息
         userInfoCache?.set(userName, ownerInfo);
         return ownerInfo;
