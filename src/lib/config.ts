@@ -4,9 +4,11 @@ import { db } from '@/lib/db';
 import { normalizeApiBaseUrl } from '@/lib/url';
 
 import { AdminConfig } from './admin.types';
+import { setServerTmdbImageBaseUrl } from './tmdb-image-base';
 
 const BUILTIN_DANMAKU_API_BASE = 'https://mtvpls-danmu.netlify.app/87654321';
 const DEFAULT_LIVE_REFRESH_INTERVAL_HOURS = 12;
+const DEFAULT_TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org';
 
 function normalizeLiveRefreshIntervalHours(
   refreshIntervalHours?: number
@@ -75,6 +77,24 @@ export const API_CONFIG = {
 // 在模块加载时根据环境决定配置来源
 let cachedConfig: AdminConfig;
 let configInitPromise: Promise<AdminConfig> | null = null;
+
+// 从配置文件文本里读 special_source_apis（兼容驼峰写法）
+function readSpecialSourceApisFromFile(configFile?: string): string[] {
+  if (!configFile) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(configFile) as ConfigFileStruct;
+    const list = Array.isArray(parsed.special_source_apis)
+      ? parsed.special_source_apis
+      : Array.isArray(parsed.specialSourceApis)
+      ? parsed.specialSourceApis
+      : [];
+    return list.filter((key): key is string => typeof key === 'string');
+  } catch (e) {
+    return [];
+  }
+}
 
 // 从配置文件补充管理员配置
 export function refineConfig(adminConfig: AdminConfig): AdminConfig {
@@ -296,6 +316,8 @@ async function getInitConfig(
       TMDBApiKey: process.env.TMDB_API_KEY || '',
       TMDBProxy: process.env.TMDB_PROXY || '',
       TMDBReverseProxy: process.env.TMDB_REVERSE_PROXY || '',
+      TMDBImageBaseUrl:
+        process.env.TMDB_IMAGE_BASE_URL || DEFAULT_TMDB_IMAGE_BASE_URL,
       // 动漫/Bangumi配置
       BangumiDataSource:
         (process.env.NEXT_PUBLIC_BANGUMI_DATA_SOURCE as any) || 'direct',
@@ -308,6 +330,9 @@ async function getInitConfig(
         process.env.NEXT_PUBLIC_BANGUMI_IMAGE_BASE_URL ||
         '',
       BangumiProxy: process.env.BANGUMI_PROXY || '',
+      LiveChartProxy: process.env.LIVECHART_PROXY || '',
+      // 本地设置云同步模式（全局）：off=关闭 manual=手动 auto=自动
+      LocalSettingsSyncMode: 'off',
       // Pansou配置
       PansouApiUrl: '',
       PansouUsername: '',
@@ -527,6 +552,7 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
       DanmakuApiBase: BUILTIN_DANMAKU_API_BASE,
       DanmakuApiToken: '87654321',
       DanmakuAutoLoadDefault: true,
+      TMDBImageBaseUrl: DEFAULT_TMDB_IMAGE_BASE_URL,
       PansouApiUrl: '',
       PansouUsername: '',
       PansouPassword: '',
@@ -562,6 +588,16 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   }
   if (adminConfig.SiteConfig.DanmakuAutoLoadDefault === undefined) {
     adminConfig.SiteConfig.DanmakuAutoLoadDefault = true;
+  }
+  if (adminConfig.SiteConfig.LiveChartProxy === undefined) {
+    adminConfig.SiteConfig.LiveChartProxy = process.env.LIVECHART_PROXY || '';
+  }
+  // 本地设置云同步模式兜底
+  if (
+    adminConfig.SiteConfig.LocalSettingsSyncMode !== 'manual' &&
+    adminConfig.SiteConfig.LocalSettingsSyncMode !== 'auto'
+  ) {
+    adminConfig.SiteConfig.LocalSettingsSyncMode = 'off';
   }
   // 确保评论开关存在
   if (adminConfig.SiteConfig.EnableComments === undefined) {
@@ -670,6 +706,11 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   if (!adminConfig.LiveConfig || !Array.isArray(adminConfig.LiveConfig)) {
     adminConfig.LiveConfig = [];
   }
+  // 区分「老库没有这个字段」(undefined → 需从配置文件兜底补齐)
+  // 与「后台显式清空」(空数组 → 尊重用户的选择，不再回填)
+  const specialSourceApisWasAbsent = !Array.isArray(
+    adminConfig.SpecialSourceApis
+  );
   if (
     !adminConfig.SpecialSourceApis ||
     !Array.isArray(adminConfig.SpecialSourceApis)
@@ -711,6 +752,24 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
     }
     if (adminConfig.OpenListConfig.PathMeta === undefined) {
       adminConfig.OpenListConfig.PathMeta = {};
+    } else {
+      // 补齐新字段默认值（代理播放开关、缓存时长）
+      // 旧配置可能缺少新字段，运行期做兜底（类型上已声明为必填）
+      for (const entry of Object.values(
+        adminConfig.OpenListConfig.PathMeta
+      ) as Array<{
+        category: string;
+        refresh14m: boolean;
+        proxyPlay?: boolean;
+        proxyCacheMinutes?: number;
+      }>) {
+        if (entry.proxyPlay === undefined) {
+          entry.proxyPlay = false;
+        }
+        if (entry.proxyCacheMinutes === undefined) {
+          entry.proxyCacheMinutes = 60;
+        }
+      }
     }
   }
 
@@ -736,6 +795,14 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   });
 
   const validSourceKeys = new Set(adminConfig.SourceConfig.map((source) => source.key));
+  // 配置文件是采集源的权威来源，special_source_apis 同理：**老库缺字段时**从 ConfigFile 补齐。
+  // 只在字段缺失时回填——否则后台把特殊源全部取消勾选（存成空数组）后，
+  // 每次 getConfig() 都会被配置文件又捞回来，等于关不掉。
+  if (specialSourceApisWasAbsent) {
+    adminConfig.SpecialSourceApis = readSpecialSourceApisFromFile(
+      adminConfig.ConfigFile
+    );
+  }
   adminConfig.SpecialSourceApis = Array.from(
     new Set((adminConfig.SpecialSourceApis || []).filter((key) => validSourceKeys.has(key)))
   );
@@ -1056,9 +1123,13 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
     site.DanmakuApiBase = normalizeApiBaseUrl(site.DanmakuApiBase);
     site.TMDBProxy = normalizeApiBaseUrl(site.TMDBProxy);
     site.TMDBReverseProxy = normalizeApiBaseUrl(site.TMDBReverseProxy);
+    site.TMDBImageBaseUrl = normalizeApiBaseUrl(
+      site.TMDBImageBaseUrl || DEFAULT_TMDB_IMAGE_BASE_URL
+    );
     site.BangumiApiBaseUrl = normalizeApiBaseUrl(site.BangumiApiBaseUrl);
     site.BangumiImageBaseUrl = normalizeApiBaseUrl(site.BangumiImageBaseUrl);
     site.BangumiProxy = normalizeApiBaseUrl(site.BangumiProxy);
+    site.LiveChartProxy = normalizeApiBaseUrl(site.LiveChartProxy);
     site.PansouApiUrl = normalizeApiBaseUrl(site.PansouApiUrl);
     site.MagnetProxy = normalizeApiBaseUrl(site.MagnetProxy);
     site.MagnetMikanReverseProxy = normalizeApiBaseUrl(
@@ -1123,6 +1194,9 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
     adminConfig.AIConfig.OpenAIBaseURL = normalizeApiBaseUrl(
       adminConfig.AIConfig.OpenAIBaseURL
     );
+    adminConfig.AIConfig.ClaudeBaseURL = normalizeApiBaseUrl(
+      adminConfig.AIConfig.ClaudeBaseURL
+    );
     adminConfig.AIConfig.CustomBaseURL = normalizeApiBaseUrl(
       adminConfig.AIConfig.CustomBaseURL
     );
@@ -1132,6 +1206,12 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
     adminConfig.AIConfig.DecisionCustomBaseURL = normalizeApiBaseUrl(
       adminConfig.AIConfig.DecisionCustomBaseURL
     );
+    // 新版工具式调用：补充默认值，避免旧存储配置未定义
+    adminConfig.AIConfig.EnableNewMode = adminConfig.AIConfig.EnableNewMode ?? true;
+    adminConfig.AIConfig.NewProtocol =
+      adminConfig.AIConfig.NewProtocol ?? 'openai-completions';
+    adminConfig.AIConfig.MaxContext = adminConfig.AIConfig.MaxContext ?? 131072;
+    adminConfig.AIConfig.CompressThreshold = adminConfig.AIConfig.CompressThreshold ?? 90;
   }
 
   if (adminConfig.TelegramConfig) {
@@ -1139,6 +1219,9 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
       adminConfig.TelegramConfig.apiBaseUrl
     );
   }
+
+  // 同步 TMDB 图片默认地址到轻量模块，供 getTMDBImageUrl 等服务端图片拼接使用
+  setServerTmdbImageBaseUrl(adminConfig.SiteConfig?.TMDBImageBaseUrl);
 
   // 注意：OPDS source.url 是完整目录 URL，保留末尾 / 以便相对路径解析
 
@@ -1172,14 +1255,13 @@ export async function getCacheTime(): Promise<number> {
 
 export async function getAvailableApiSites(
   user?: string,
-  includeSpecialSources = false
+  specialOnly = false
 ): Promise<ApiSite[]> {
   const config = await getConfig();
   const specialSourceSet = new Set(config.SpecialSourceApis || []);
+  // 双向隔离：普通入口只给普通源，/under 入口只给特殊源
   const filterSpecialSources = <T extends { key: string }>(sites: T[]): T[] =>
-    includeSpecialSources
-      ? sites
-      : sites.filter((site) => !specialSourceSet.has(site.key));
+    sites.filter((site) => specialSourceSet.has(site.key) === specialOnly);
   const allApiSites = filterSpecialSources(
     config.SourceConfig.filter((s) => !s.disabled)
   );
