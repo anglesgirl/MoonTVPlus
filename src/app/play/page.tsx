@@ -4316,7 +4316,7 @@ function PlayPageClient() {
             if (playUrlValue) {
               const m3u8 = await movyBrowserScan(playUrlValue);
               if (m3u8) {
-                newUrl = `/api/m3u8-proxy/?url=${encodeURIComponent(m3u8)}&referer=${encodeURIComponent('https://www.movy.sx/')}`;
+                newUrl = `/api/m3u8-proxy/index.m3u8?url=${encodeURIComponent(m3u8)}&referer=${encodeURIComponent('https://www.movy.sx/')}`;
                 setVideoQualities([]);
               }
             }
@@ -4338,7 +4338,7 @@ function PlayPageClient() {
       try {
         const m3u8 = await movyBrowserScan(newUrl);
         if (m3u8) {
-          newUrl = `/api/m3u8-proxy/?url=${encodeURIComponent(m3u8)}&referer=${encodeURIComponent('https://www.movy.sx/')}`;
+          newUrl = `/api/m3u8-proxy/index.m3u8?url=${encodeURIComponent(m3u8)}&referer=${encodeURIComponent('https://www.movy.sx/')}`;
           setVideoQualities([]);
         }
       } catch (scanErr) {
