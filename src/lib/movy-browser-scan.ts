@@ -1,3 +1,4 @@
+// @ts-nocheck 该文件含原样提取的混淆解密代码（无类型标注），跳过类型检查避免 strict 编译失败
 // movy.sx 浏览器端扫描（play 页兜底用）
 // 用途：MoonTVPlus 服务器（甲骨文）访问 api.wecollege.net 被风控时，
 //       resolvePlayUrl 服务器端失败 → 前端用浏览器（家用 IP）扫 movy：
