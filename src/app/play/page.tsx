@@ -15,6 +15,7 @@ import {
 
 import { isAnimeCategoryText } from '@/lib/anime-keyword-expr';
 import { createAnime4KRenderer } from '@/lib/anime4k';
+import { movyBrowserScan } from '@/lib/movy-browser-scan';
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 import {
   clearDanmakuCacheByTitle,
@@ -4302,6 +4303,26 @@ function PlayPageClient() {
         } else if (originalLazyUrl.startsWith('/api/openlist/play')) {
           // 未拿到 url 时不保留 lazy url，避免无效续期
           currentXiaoyaUrlRef.current = '';
+        } else if (
+          fetchUrl.includes('sourceId=movy') ||
+          fetchUrl.includes('sourceId%3Dmovy')
+        ) {
+          // movy 源兜底：服务器（如甲骨文）访问 api.wecollege.net 被风控导致 resolve 失败时，
+          // 用浏览器（家用 IP）直接扫 movy：seed + miami/sources（CORS 全放行）→ 解密 → m3u8
+          // m3u8 有防盗链（moon.zenoak.top 需 Referer）→ 经 /api/m3u8-proxy 代理播放；分片（stormhive.top）无防盗链直连
+          try {
+            const playUrlValue =
+              new URL(fetchUrl, window.location.origin).searchParams.get('playUrl') || '';
+            if (playUrlValue) {
+              const m3u8 = await movyBrowserScan(playUrlValue);
+              if (m3u8) {
+                newUrl = `/api/m3u8-proxy/?url=${encodeURIComponent(m3u8)}&referer=${encodeURIComponent('https://www.movy.sx/')}`;
+                setVideoQualities([]);
+              }
+            }
+          } catch (scanErr) {
+            console.error('movy 浏览器端扫描失败:', scanErr);
+          }
         }
       } catch (error) {
         if (requestSeq !== videoUrlRequestSeqRef.current) {
