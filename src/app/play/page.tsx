@@ -2547,8 +2547,6 @@ function PlayPageClient() {
 
   const artPlayerRef = useRef<any>(null);
   const artRef = useRef<HTMLDivElement | null>(null);
-  // movy 源：浏览器端扫描解出的原始 m3u8（供「外部播放器」直连用，不走服务器）
-  const [movyRawM3u8, setMovyRawM3u8] = useState('');
   // 换集重建播放器前记住网页全屏状态，新播放器 ready 后恢复
   const restoreWebFullscreenOnReadyRef = useRef(false);
   const activeHarmonyHlsPlaybackModeRef =
@@ -4320,7 +4318,6 @@ function PlayPageClient() {
               const m3u8 = await movyBrowserScan(playUrlValue);
               if (m3u8) {
                 newUrl = `/api/m3u8-cache/${djb2Hash(m3u8)}.m3u8?src=${encodeURIComponent(m3u8)}&referer=${encodeURIComponent('https://www.movy.sx/')}`;
-                setMovyRawM3u8(m3u8);
                 setVideoQualities([]);
               }
             }
@@ -4343,7 +4340,6 @@ function PlayPageClient() {
         const m3u8 = await movyBrowserScan(newUrl);
         if (m3u8) {
           newUrl = `/api/m3u8-cache/${djb2Hash(m3u8)}.m3u8?src=${encodeURIComponent(m3u8)}&referer=${encodeURIComponent('https://www.movy.sx/')}`;
-          setMovyRawM3u8(m3u8);
           setVideoQualities([]);
         }
       } catch (scanErr) {
@@ -4504,26 +4500,6 @@ function PlayPageClient() {
       setVideoUrl(newUrl);
     }
     setPlaybackSourceBadge(nextPlaybackSourceBadge);
-  };
-
-  // movy 源「外部播放器」：原生播放器（MX/VLC/nPlayer 等）无浏览器 Origin 限制，
-  // 可直连 movy 分片（noblekite.top 等 Origin 防盗链对原生请求不生效），流量完全不走服务器。
-  const openExternalPlayer = () => {
-    const u = movyRawM3u8;
-    if (!u) return;
-    const ua = navigator.userAgent;
-    const title = (detail && detail.title) || videoTitle || '';
-    if (/Android/i.test(ua)) {
-      // Android：优先 MX Player（免费版），未安装则回退 VLC
-      const mx = `intent:${encodeURIComponent(u)}#Intent;type=video/*;package=com.mxtech.videoplayer.ad;S.title=${encodeURIComponent(title)};end`;
-      window.location.href = mx;
-    } else if (/iPhone|iPad|iPod/i.test(ua)) {
-      // iOS：nPlayer 协议（如已安装）
-      window.location.href = `nplayer-${u}`;
-    } else {
-      // 桌面：新窗口打开，交给系统播放器/下载工具
-      window.open(u, '_blank');
-    }
   };
 
   // 处理下载指定集数（支持批量下载）
@@ -10819,20 +10795,6 @@ function PlayPageClient() {
 
   return (
     <PageLayout activePath='/play' hideNavigation={isWebFullscreen}>
-      {/* movy 源：外部播放器直连入口（原生播放器无 Origin 限制，可绕过防盗链且不走服务器） */}
-      {movyRawM3u8 && (
-        <button
-          onClick={openExternalPlayer}
-          title='用本机播放器直连播放（不走服务器，无广告）'
-          className='fixed bottom-24 right-4 z-[900] flex items-center gap-1.5 rounded-full bg-emerald-600/90 px-4 py-2.5 text-sm font-medium text-white shadow-lg backdrop-blur transition hover:bg-emerald-500'
-        >
-          <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z' />
-            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M21 12a9 9 0 11-18 0 9 9 0 0118 0z' />
-          </svg>
-          外部播放器
-        </button>
-      )}
       {/* TMDB背景图 */}
       {tmdbBackdrop && (
         <div
