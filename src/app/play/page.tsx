@@ -15,7 +15,7 @@ import {
 
 import { isAnimeCategoryText } from '@/lib/anime-keyword-expr';
 import { createAnime4KRenderer } from '@/lib/anime4k';
-import { movyBrowserScan } from '@/lib/movy-browser-scan';
+import { movyBrowserScan, isMovyBareId } from '@/lib/movy-browser-scan';
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 import {
   clearDanmakuCacheByTitle,
@@ -4331,6 +4331,18 @@ function PlayPageClient() {
         console.error('获取播放链接失败:', error);
         setVideoQualities([]);
         currentXiaoyaUrlRef.current = ''; // 获取失败，清空
+      }
+    } else if (isMovyBareId(newUrl)) {
+      // movy 裸 id（search/detail 未包装成 play URL，播放器会直接拿到它）：
+      // 浏览器（家用 IP）直接扫 movy → m3u8 → 经 /api/m3u8-proxy 代理播放
+      try {
+        const m3u8 = await movyBrowserScan(newUrl);
+        if (m3u8) {
+          newUrl = `/api/m3u8-proxy/?url=${encodeURIComponent(m3u8)}&referer=${encodeURIComponent('https://www.movy.sx/')}`;
+          setVideoQualities([]);
+        }
+      } catch (scanErr) {
+        console.error('movy 裸 id 浏览器端扫描失败:', scanErr);
       }
     } else {
       // 非小雅/openlist 源，清空清晰度列表

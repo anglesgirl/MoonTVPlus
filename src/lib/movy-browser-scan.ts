@@ -100,6 +100,21 @@ export function b64urlDecode(str) {
   return decodeURIComponent(atob(padded).split('').map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')).join(''));
 }
 
+// 判断一个裸 URL 是否为 movy 的 base64url id（search/detail 未包装成 play URL 时播放器会直接拿到它）
+export function isMovyBareId(value) {
+  if (!value || value.startsWith('/') || value.startsWith('http')) return false;
+  try {
+    const meta = JSON.parse(b64urlDecode(value));
+    return (
+      typeof meta.tmdbId === 'number' &&
+      (meta.mediaType === 'movie' || meta.mediaType === 'tv') &&
+      Boolean(meta.title || meta.titleEn)
+    );
+  } catch {
+    return false;
+  }
+}
+
 // ---- 浏览器端扫描入口：playUrl(base64url) → 最佳 m3u8 URL ----
 export async function movyBrowserScan(playUrlValue) {
   const meta = JSON.parse(b64urlDecode(playUrlValue));
