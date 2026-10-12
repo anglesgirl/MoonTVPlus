@@ -13,7 +13,9 @@ const MAX_REDIRECTS = 5;
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 // VOD 清单静态不变，长缓存（7 天）；命中后不再请求源站
-const CACHE_TTL_SECONDS = 7 * 24 * 3600;
+// 实测：movy 分片 URL 是短时签名（约 40 分钟+ 有效），缓存过长会导致分片过期 403
+// → TTL 缩短为 30 分钟，保证缓存命中时分片签名仍有效
+const CACHE_TTL_SECONDS = 30 * 60;
 
 function getCache() {
   return createRedisClient(
@@ -43,7 +45,7 @@ export async function GET(
       return NextResponse.json({ error: '无效的 hash' }, { status: 400 });
     }
 
-    const cacheKey = `m3u8:cache:v4:${hash}`;
+    const cacheKey = `m3u8:cache:v5:${hash}`;
     const cache = getCache();
 
     // 命中缓存：直接返回
@@ -160,9 +162,13 @@ const SEGMENT_RE =
   /https?:\/\/[^\s"']+?\.(?:m4s|ts|mp4)(?:\?[^\s"']*)?/;
 
 /**
- * 探测清单分片是否开启防盗链：不带 Referer（模拟浏览器 no-referrer 策略）拉首个分片。
- * - 403/401 → 需代理（服务器带 Referer 兜底）
- * - 200/206 → 无防盗链 → 直连省流量
+ * 探测清单分片是否开启防盗链。
+ * 实测结论：movy 分片 CDN（noblekite.top 等）校验的是 **Origin**——
+ * 浏览器跨域（Origin=2btv.eu.org）→ 403；movy 站内（Origin=movy.sx）→ 206；
+ * 无 Origin（服务器 fetch）→ 206。
+ * 因此探测必须带 Origin: https://2btv.eu.org 模拟浏览器跨域，才能正确识别防盗链：
+ * - 403 → 需代理（服务器无 Origin 拉流 → 206 可播）
+ * - 206/200 → 无防盗链 → 直连省流量
  * - 探测异常（超时/网络错误）→ 保守返回 true（走代理保证可播）
  * 只拉 1 字节（Range: bytes=0-1），探测开销可忽略。
  */
@@ -172,7 +178,10 @@ async function probeSegmentNeedsProxy(playlistText: string): Promise<boolean> {
   const url = first[0];
   try {
     const resp = await fetch(url, {
-      headers: { Range: 'bytes=0-1' },
+      headers: {
+        Range: 'bytes=0-1',
+        Origin: 'https://2btv.eu.org', // 模拟浏览器跨域，暴露 Origin 防盗链
+      },
       redirect: 'manual',
       signal: AbortSignal.timeout(6000),
     });
