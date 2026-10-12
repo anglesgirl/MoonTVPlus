@@ -28,10 +28,11 @@ function getCache() {
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { hash: string } }
+  { params }: { params: Promise<{ hash: string }> }
 ) {
   try {
-    const hash = params.hash.replace(/\.m3u8$/i, '');
+    const { hash: rawHash } = await params;
+    const hash = rawHash.replace(/\.m3u8$/i, '');
     const src = request.nextUrl.searchParams.get('src');
     const referer = request.nextUrl.searchParams.get('referer') || '';
 
