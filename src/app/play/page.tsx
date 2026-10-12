@@ -16,6 +16,7 @@ import {
 import { isAnimeCategoryText } from '@/lib/anime-keyword-expr';
 import { createAnime4KRenderer } from '@/lib/anime4k';
 import { movyBrowserScan, isMovyBareId } from '@/lib/movy-browser-scan';
+import { djb2Hash } from '@/lib/m3u8-rewrite';
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 import {
   clearDanmakuCacheByTitle,
@@ -4316,7 +4317,7 @@ function PlayPageClient() {
             if (playUrlValue) {
               const m3u8 = await movyBrowserScan(playUrlValue);
               if (m3u8) {
-                newUrl = `/api/m3u8-proxy/index.m3u8?url=${encodeURIComponent(m3u8)}&referer=${encodeURIComponent('https://www.movy.sx/')}`;
+                newUrl = `/api/m3u8-cache/${djb2Hash(m3u8)}.m3u8?src=${encodeURIComponent(m3u8)}&referer=${encodeURIComponent('https://www.movy.sx/')}`;
                 setVideoQualities([]);
               }
             }
@@ -4338,7 +4339,7 @@ function PlayPageClient() {
       try {
         const m3u8 = await movyBrowserScan(newUrl);
         if (m3u8) {
-          newUrl = `/api/m3u8-proxy/index.m3u8?url=${encodeURIComponent(m3u8)}&referer=${encodeURIComponent('https://www.movy.sx/')}`;
+          newUrl = `/api/m3u8-cache/${djb2Hash(m3u8)}.m3u8?src=${encodeURIComponent(m3u8)}&referer=${encodeURIComponent('https://www.movy.sx/')}`;
           setVideoQualities([]);
         }
       } catch (scanErr) {

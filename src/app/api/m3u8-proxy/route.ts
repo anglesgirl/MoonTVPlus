@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateProxyUrlServerSide } from '@/lib/server/ssrf';
+import { rewriteMediaUrlsToProxy } from '@/lib/m3u8-rewrite';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,27 +17,6 @@ function corsHeaders(headers: Headers): Headers {
   h.set('Access-Control-Allow-Origin', '*');
   h.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
   return h;
-}
-
-/**
- * 重写 m3u8 内容中的媒体 URL 为同源代理地址。
- * 背景：源站分片（stormhive.top）带 Referer 防盗链，播放器直连无合法 Referer 会被 403 拒绝；
- * 统一改走本服务的代理路由，由服务器带 Referer 拉流，播放器侧为同源请求，绕过防盗链与 CORS 双重限制。
- * - 分片/init 资源（.m4s/.ts/.mp4）→ /api/m4s-proxy（二进制流式转发）
- * - 子 m3u8 清单 → /api/m3u8-proxy/index.m3u8（嵌套代理，保持 .m3u8 特征供播放器识别 HLS）
- */
-function rewriteMediaUrlsToProxy(text: string, referer: string): string {
-  let out = text.replace(
-    /https?:\/\/[^\s"']+?\.(?:m4s|ts|mp4)[^\s"']*/g,
-    (match) =>
-      `/api/m4s-proxy?url=${encodeURIComponent(match)}&referer=${encodeURIComponent(referer)}`
-  );
-  out = out.replace(
-    /https?:\/\/[^\s"']+?\.m3u8[^\s"']*/g,
-    (match) =>
-      `/api/m3u8-proxy/index.m3u8?url=${encodeURIComponent(match)}&referer=${encodeURIComponent(referer)}`
-  );
-  return out;
 }
 
 /**
