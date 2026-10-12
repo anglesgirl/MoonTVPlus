@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateProxyUrlServerSide } from '@/lib/server/ssrf';
-import { rewriteMediaUrlsToProxy } from '@/lib/m3u8-rewrite';
+import {
+  rewriteMediaUrlsToProxy,
+  rewriteNestedPlaylistsOnly,
+} from '@/lib/m3u8-rewrite';
 import { createRedisClient } from '@/lib/redis-node-client';
 
 export const runtime = 'nodejs';
@@ -40,7 +43,7 @@ export async function GET(
       return NextResponse.json({ error: '无效的 hash' }, { status: 400 });
     }
 
-    const cacheKey = `m3u8:cache:v3:${hash}`;
+    const cacheKey = `m3u8:cache:v4:${hash}`;
     const cache = getCache();
 
     // 命中缓存：直接返回
@@ -113,7 +116,13 @@ export async function GET(
       }
 
       const text = await resp.text();
-      const rewritten = rewriteMediaUrlsToProxy(text, referer);
+      // 混合模式：探测分片是否防盗链（不带 Referer 模拟浏览器）
+      // - 分片 200 → 无防盗链 → 分片保持直连（流量不走服务器，省甲骨文带宽）
+      // - 分片 403 → 有防盗链 → 分片统一重写为 m4s-proxy（服务器带 Referer 兜底）
+      const segmentNeedsProxy = await probeSegmentNeedsProxy(text);
+      const rewritten = segmentNeedsProxy
+        ? rewriteMediaUrlsToProxy(text, referer)
+        : rewriteNestedPlaylistsOnly(text, referer);
 
       // 缓存后返回（尽力缓存，失败不影响返回）
       try {
@@ -145,4 +154,32 @@ function m3u8Headers(): Headers {
   h.set('Access-Control-Allow-Origin', '*');
   h.set('Cache-Control', 'public, max-age=86400');
   return h;
+}
+
+const SEGMENT_RE =
+  /https?:\/\/[^\s"']+?\.(?:m4s|ts|mp4)(?:\?[^\s"']*)?/;
+
+/**
+ * 探测清单分片是否开启防盗链：不带 Referer（模拟浏览器 no-referrer 策略）拉首个分片。
+ * - 403/401 → 需代理（服务器带 Referer 兜底）
+ * - 200/206 → 无防盗链 → 直连省流量
+ * - 探测异常（超时/网络错误）→ 保守返回 true（走代理保证可播）
+ * 只拉 1 字节（Range: bytes=0-1），探测开销可忽略。
+ */
+async function probeSegmentNeedsProxy(playlistText: string): Promise<boolean> {
+  const first = playlistText.match(SEGMENT_RE);
+  if (!first) return true; // 清单里没有分片 URL（可能纯嵌套清单），保守代理
+  const url = first[0];
+  try {
+    const resp = await fetch(url, {
+      headers: { Range: 'bytes=0-1' },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(6000),
+    });
+    await resp.body?.cancel();
+    // 非 2xx（403/401/404/5xx/3xx 重定向）都保守走代理，保证可播
+    return !resp.ok;
+  } catch {
+    return true;
+  }
 }

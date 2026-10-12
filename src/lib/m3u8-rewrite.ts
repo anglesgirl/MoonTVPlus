@@ -24,6 +24,17 @@ export function rewriteMediaUrlsToProxy(text: string, referer: string): string {
   return out;
 }
 
+/**
+ * 只重写子 m3u8 清单（分片保持直连）。用于分片无防盗链的场景（省服务器带宽）。
+ */
+export function rewriteNestedPlaylistsOnly(text: string, referer: string): string {
+  return text.replace(
+    /https?:\/\/[^\s"']+?\.m3u8[^\s"']*/g,
+    (match) =>
+      `/api/m3u8-proxy/index.m3u8?url=${encodeURIComponent(match)}&referer=${encodeURIComponent(referer)}`
+  );
+}
+
 /** 纯 JS 确定性哈希（djb2，32 位，36 进制短串），用于 m3u8 缓存 key / 静态地址 */
 export function djb2Hash(str: string): string {
   let h = 5381;
