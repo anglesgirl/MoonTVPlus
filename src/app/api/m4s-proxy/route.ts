@@ -97,5 +97,7 @@ function passthroughHeaders(headers: Headers): Headers {
   h.set('Access-Control-Allow-Origin', '*');
   h.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
   h.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges, Content-Type');
+  // 分片是 VOD 静态资源，允许浏览器/CDN 缓存（重复播放/多用户命中，减少回源）
+  h.set('Cache-Control', 'public, max-age=86400');
   return h;
 }

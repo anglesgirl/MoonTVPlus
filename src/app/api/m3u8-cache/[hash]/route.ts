@@ -40,7 +40,7 @@ export async function GET(
       return NextResponse.json({ error: '无效的 hash' }, { status: 400 });
     }
 
-    const cacheKey = `m3u8:cache:v2:${hash}`;
+    const cacheKey = `m3u8:cache:v3:${hash}`;
     const cache = getCache();
 
     // 命中缓存：直接返回
