@@ -2031,11 +2031,7 @@ function PlayPageClient() {
       meta.setAttribute('name', 'hyper-video-url');
       document.head.appendChild(meta);
     }
-    // 转绝对地址：扩展播放器页在 moz-extension:// 下，相对路径会解析错
-    const absoluteUrl = /^https?:/i.test(videoUrl)
-      ? videoUrl
-      : new URL(videoUrl, window.location.origin).href;
-    meta.setAttribute('content', absoluteUrl);
+    meta.setAttribute('content', videoUrl);
   }, [videoUrl]);
 
   // 鸿蒙浏览器使用原生 HLS 时，video.currentSrc 会保留真实 m3u8，便于浏览器投屏。
