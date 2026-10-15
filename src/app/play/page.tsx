@@ -2016,6 +2016,24 @@ function PlayPageClient() {
   const [videoUrl, setVideoUrl] = useState('');
   const [playbackSourceBadge, setPlaybackSourceBadge] = useState<PlaybackSourceBadge>(null);
 
+  // HyperBrowser 配合输出：检测到自家浏览器 UA 时，把当前视频直链写入 meta，
+  // 浏览器扩展直接取用，无需嗅探（见 hyper-browser video-player 扩展）。
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return;
+    if (!/HyperBrowser\//i.test(navigator.userAgent)) return;
+    let meta = document.querySelector('meta[name="hyper-video-url"]') as HTMLMetaElement | null;
+    if (!videoUrl) {
+      meta?.remove();
+      return;
+    }
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', 'hyper-video-url');
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', videoUrl);
+  }, [videoUrl]);
+
   // 鸿蒙浏览器使用原生 HLS 时，video.currentSrc 会保留真实 m3u8，便于浏览器投屏。
   const [isHarmonyOS] = useState(
     () =>
