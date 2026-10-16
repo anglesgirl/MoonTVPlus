@@ -595,7 +595,7 @@ export function processImageUrl(originalUrl: string): string {
         }
       }
     }
-    return originalUrl;
+    // 未配置镜像地址时不直接返回，落到下方统一走 /api/image-proxy
   }
 
   // 处理 Bangumi 图片代理。直连模式尊重用户选择，不代理图片；
