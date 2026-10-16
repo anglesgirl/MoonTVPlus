@@ -544,7 +544,7 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
       SiteInterfaceCacheTime: 7200,
       DoubanProxyType: 'cmliussss-cdn-tencent',
       DoubanProxy: '',
-      DoubanImageProxyType: 'cmliussss-cdn-tencent',
+      DoubanImageProxyType: 'server',
       DoubanImageProxy: '',
       DisableYellowFilter: false,
       FluidSearch: true,

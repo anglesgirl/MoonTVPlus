@@ -614,12 +614,17 @@ export function processImageUrl(originalUrl: string): string {
   }
 
   // 处理豆瓣图片代理
-  if (!originalUrl.includes('doubanio.com')) {
-    return originalUrl;
+  if (originalUrl.includes('doubanio.com')) {
+    const { proxyType, proxyUrl } = getDoubanImageProxyConfig();
+    return buildDoubanImageUrl(originalUrl, proxyType, proxyUrl);
   }
 
-  const { proxyType, proxyUrl } = getDoubanImageProxyConfig();
-  return buildDoubanImageUrl(originalUrl, proxyType, proxyUrl);
+  // 其他外部图片统一走服务端代理，保证可用性（CF 缓存后源站无压力）
+  if (/^https?:\/\//.test(originalUrl)) {
+    return `/api/image-proxy?url=${encodeURIComponent(originalUrl)}`;
+  }
+
+  return originalUrl;
 }
 
 /**
