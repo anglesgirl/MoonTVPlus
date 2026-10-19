@@ -33,6 +33,7 @@ import {
   getSearchHistory,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
+import { deduplicateSearchResults } from '@/lib/search-results';
 import { SearchResult } from '@/lib/types';
 import {
   appendSpecialSourceParam,
@@ -433,9 +434,11 @@ export function SearchPageClient({ searchBase = '/search' }: { searchBase?: stri
   };
 
   const allExactSearchResults = useMemo(() => {
-    if (!exactSearch) return searchResults;
+    // Duplicate React keys can leave removed source cards behind after filtering.
+    const uniqueResults = deduplicateSearchResults(searchResults);
+    if (!exactSearch) return uniqueResults;
 
-    return searchResults.filter((item) =>
+    return uniqueResults.filter((item) =>
       titleContainsQuery(item.title, submittedSearchQuery)
     );
   }, [searchResults, submittedSearchQuery, exactSearch]);
@@ -2603,4 +2606,3 @@ export function SearchPageClient({ searchBase = '/search' }: { searchBase?: stri
     </PageLayout>
   );
 }
-
