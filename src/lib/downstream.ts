@@ -2,6 +2,7 @@
 
 import { API_CONFIG, ApiSite, getConfig } from '@/lib/config';
 import { getCachedSearchPage, setCachedSearchPage } from '@/lib/search-cache';
+import { deduplicateSearchResults } from '@/lib/search-results';
 import { SearchResult } from '@/lib/types';
 import { cleanHtmlTags } from '@/lib/utils';
 
@@ -150,7 +151,8 @@ export async function searchFromApi(
 
     // 使用新的缓存搜索函数处理第一页
     const firstPageResult = await searchWithCache(apiSite, query, 1, apiUrl, 8000);
-    const results = firstPageResult.results;
+    // Never append other pages to the array owned by the first-page cache.
+    const results = [...firstPageResult.results];
     const pageCountFromFirst = firstPageResult.pageCount;
 
     const config = await getConfig();
@@ -192,7 +194,7 @@ export async function searchFromApi(
       });
     }
 
-    return results;
+    return deduplicateSearchResults(results);
   } catch (error) {
     return [];
   }
