@@ -14,6 +14,7 @@ import {
   Eye,
   EyeOff,
   Gauge,
+  HardDrive,
   Globe,
   Home,
   LogOut,
@@ -53,6 +54,7 @@ import { UpdateStatus } from '@/lib/version_check';
 import { DeviceManagementPanel } from './DeviceManagementPanel';
 import { DownloadManagementPanel } from './DownloadManagementPanel';
 import { EmailSettingsPanel } from './EmailSettingsPanel';
+import { NetDiskSettingsPanel } from './NetDiskSettingsPanel';
 import { FavoritesPanel } from './FavoritesPanel';
 import { NotificationPanel } from './NotificationPanel';
 import { OfflineDownloadPanel } from './OfflineDownloadPanel';
@@ -81,6 +83,7 @@ export const UserMenu: React.FC = () => {
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
   const [isFavoritesPanelOpen, setIsFavoritesPanelOpen] = useState(false);
   const [isEmailSettingsOpen, setIsEmailSettingsOpen] = useState(false);
+  const [isNetDiskSettingsOpen, setIsNetDiskSettingsOpen] = useState(false);
   const [isDeviceManagementOpen, setIsDeviceManagementOpen] = useState(false);
   const [isEcoAppsOpen, setIsEcoAppsOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
@@ -126,6 +129,7 @@ export const UserMenu: React.FC = () => {
       isSubscribeOpen ||
       isOfflineDownloadPanelOpen ||
       isEmailSettingsOpen ||
+      isNetDiskSettingsOpen ||
       isDeviceManagementOpen ||
       isEcoAppsOpen ||
       isReportOpen ||
@@ -157,6 +161,7 @@ export const UserMenu: React.FC = () => {
     isSubscribeOpen,
     isOfflineDownloadPanelOpen,
     isEmailSettingsOpen,
+    isNetDiskSettingsOpen,
     isDeviceManagementOpen,
     isEcoAppsOpen,
     isReportOpen,
@@ -2994,6 +2999,18 @@ export const UserMenu: React.FC = () => {
           >
             <Star className='w-4 h-4 text-gray-500 dark:text-gray-400' />
             <span className='font-medium'>我的收藏</span>
+          </button>
+
+          {/* 我的网盘按钮 */}
+          <button
+            onClick={() => {
+              setIsOpen(false);
+              setIsNetDiskSettingsOpen(true);
+            }}
+            className='w-full px-3 py-2 text-left flex items-center gap-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm relative'
+          >
+            <HardDrive className='w-4 h-4 text-gray-500 dark:text-gray-400' />
+            <span className='font-medium'>我的网盘</span>
           </button>
 
           {/* 设置按钮 */}
@@ -6266,6 +6283,12 @@ export const UserMenu: React.FC = () => {
         onSave={handleSaveEmailSettings}
         statusMessage={emailSettingsMessage}
         statusType={emailSettingsMessageType}
+      />
+
+      <NetDiskSettingsPanel
+        isOpen={isNetDiskSettingsOpen}
+        mounted={mounted}
+        onClose={() => setIsNetDiskSettingsOpen(false)}
       />
 
       <DeviceManagementPanel

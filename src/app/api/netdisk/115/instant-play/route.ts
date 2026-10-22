@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from '@/lib/netdisk/effective-config';
 import { listPan115ShareVideos } from '@/lib/netdisk/pan115.client';
 import { createPan115NetdiskSession } from '@/lib/netdisk/pan115-session-cache';
 import { NETDISK_115_SOURCE } from '@/lib/netdisk/source';
@@ -24,19 +24,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '分享链接不能为空' }, { status: 400 });
     }
 
-    const config = await getConfig();
-    const pan115Config = config.NetDiskConfig?.Pan115;
+    const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+    const pan115Config = netdiskConfig?.Pan115;
     if (!pan115Config?.Enabled || !pan115Config.Cookie) {
       return NextResponse.json({ error: '115网盘未配置或未启用' }, { status: 400 });
     }
 
     const result = await listPan115ShareVideos(shareUrl, passcode || '');
-    const session = createPan115NetdiskSession({
-      title: title || result.title,
-      shareUrl,
-      passcode,
-      files: result.files,
-    });
+    const session = createPan115NetdiskSession(
+      {
+        title: title || result.title,
+        shareUrl,
+        passcode,
+        files: result.files,
+      },
+      netdiskOwnerKey('Pan115', pan115Config)
+    );
 
     return NextResponse.json({
       success: true,

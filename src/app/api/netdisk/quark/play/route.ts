@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from '@/lib/netdisk/effective-config';
 import { getQuarkNetdiskSession, refreshQuarkNetdiskSession } from '@/lib/netdisk/quark-session-cache';
 
 export const runtime = 'nodejs';
@@ -26,7 +27,9 @@ export async function GET(request: NextRequest) {
     }
 
     const proxyUrl = `/api/netdisk/quark/proxy?id=${encodeURIComponent(id)}&episodeIndex=${episodeIndex}`;
-    refreshQuarkNetdiskSession(id) || getQuarkNetdiskSession(id);
+    const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+    const ownerKey = netdiskOwnerKey('Quark', netdiskConfig?.Quark);
+    refreshQuarkNetdiskSession(id, ownerKey) || getQuarkNetdiskSession(id, ownerKey);
 
     if (format === 'json') {
       return NextResponse.json({ url: proxyUrl, headers: {} });

@@ -14,6 +14,10 @@ import {
   refreshBaiduNetdiskSession,
 } from '@/lib/netdisk/baidu-session-cache';
 import {
+  getEffectiveNetDiskConfig,
+  netdiskOwnerKey,
+} from '@/lib/netdisk/effective-config';
+import {
   createMobileNetdiskSession,
   getMobileNetdiskSession,
   parseMobileNetdiskId,
@@ -463,14 +467,16 @@ export async function GET(request: NextRequest) {
 
   if (sourceCode === NETDISK_MOBILE_SOURCE) {
     try {
-      const config = await getConfig();
-      const mobileConfig = config.NetDiskConfig?.Mobile;
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const mobileConfig = netdiskConfig?.Mobile;
       if (!mobileConfig?.Enabled || !mobileConfig.Authorization) {
         throw new Error('移动云盘未配置或未启用');
       }
 
+      const ownerKey = netdiskOwnerKey('Mobile', mobileConfig);
+
       let session =
-        refreshMobileNetdiskSession(id) || getMobileNetdiskSession(id);
+        refreshMobileNetdiskSession(id, ownerKey) || getMobileNetdiskSession(id, ownerKey);
       if (!session) {
         const payload = parseMobileNetdiskId(id);
         const { listMobileShareVideos } = await import(
@@ -480,12 +486,15 @@ export async function GET(request: NextRequest) {
           payload.shareUrl,
           mobileConfig.Authorization
         );
-        session = createMobileNetdiskSession({
-          title: title || result.title,
-          shareUrl: payload.shareUrl,
-          passcode: payload.passcode,
-          files: result.files,
-        });
+        session = createMobileNetdiskSession(
+          {
+            title: title || result.title,
+            shareUrl: payload.shareUrl,
+            passcode: payload.passcode,
+            files: result.files,
+          },
+          ownerKey
+        );
       }
       if (!session) {
         throw new Error('移动云盘播放信息恢复失败');
@@ -544,14 +553,16 @@ export async function GET(request: NextRequest) {
 
   if (sourceCode === NETDISK_BAIDU_SOURCE) {
     try {
-      const config = await getConfig();
-      const baiduConfig = config.NetDiskConfig?.Baidu;
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const baiduConfig = netdiskConfig?.Baidu;
       if (!baiduConfig?.Enabled || !baiduConfig.Cookie) {
         throw new Error('百度网盘未配置或未启用');
       }
 
+      const ownerKey = netdiskOwnerKey('Baidu', baiduConfig);
+
       let session =
-        refreshBaiduNetdiskSession(id) || getBaiduNetdiskSession(id);
+        refreshBaiduNetdiskSession(id, ownerKey) || getBaiduNetdiskSession(id, ownerKey);
       if (!session) {
         const payload = parseBaiduNetdiskId(id);
         const { listBaiduShareVideos } = await import(
@@ -562,14 +573,17 @@ export async function GET(request: NextRequest) {
           baiduConfig.Cookie,
           payload.passcode || ''
         );
-        session = createBaiduNetdiskSession({
-          title: title || result.title,
-          shareUrl: payload.shareUrl,
-          passcode: payload.passcode,
-          files: result.files,
-          meta: result.meta,
-          cookie: result.cookie,
-        });
+        session = createBaiduNetdiskSession(
+          {
+            title: title || result.title,
+            shareUrl: payload.shareUrl,
+            passcode: payload.passcode,
+            files: result.files,
+            meta: result.meta,
+            cookie: result.cookie,
+          },
+          ownerKey
+        );
       }
       if (!session) {
         throw new Error('百度网盘播放信息恢复失败');
@@ -626,8 +640,8 @@ export async function GET(request: NextRequest) {
 
   if (sourceCode === NETDISK_TIANYI_SOURCE) {
     try {
-      const config = await getConfig();
-      const tianyiConfig = config.NetDiskConfig?.Tianyi;
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const tianyiConfig = netdiskConfig?.Tianyi;
       if (
         !tianyiConfig?.Enabled ||
         !tianyiConfig.Account ||
@@ -636,8 +650,10 @@ export async function GET(request: NextRequest) {
         throw new Error('天翼云盘未配置或未启用');
       }
 
+      const ownerKey = netdiskOwnerKey('Tianyi', tianyiConfig);
+
       let session =
-        refreshTianyiNetdiskSession(id) || getTianyiNetdiskSession(id);
+        refreshTianyiNetdiskSession(id, ownerKey) || getTianyiNetdiskSession(id, ownerKey);
       if (!session) {
         const payload = parseTianyiNetdiskId(id);
         const { listTianyiShareVideos } = await import(
@@ -649,16 +665,19 @@ export async function GET(request: NextRequest) {
           tianyiConfig.Password,
           payload.passcode || ''
         );
-        session = createTianyiNetdiskSession({
-          title: title || result.title,
-          shareUrl: payload.shareUrl,
-          passcode: payload.passcode,
-          shareId: result.shareId,
-          shareMode: result.shareMode,
-          isFolder: result.isFolder,
-          accessCode: result.accessCode,
-          files: result.files,
-        });
+        session = createTianyiNetdiskSession(
+          {
+            title: title || result.title,
+            shareUrl: payload.shareUrl,
+            passcode: payload.passcode,
+            shareId: result.shareId,
+            shareMode: result.shareMode,
+            isFolder: result.isFolder,
+            accessCode: result.accessCode,
+            files: result.files,
+          },
+          ownerKey
+        );
       }
       if (!session) {
         throw new Error('天翼云盘播放信息恢复失败');
@@ -716,8 +735,8 @@ export async function GET(request: NextRequest) {
 
   if (sourceCode === NETDISK_123_SOURCE) {
     try {
-      const config = await getConfig();
-      const pan123Config = config.NetDiskConfig?.Pan123;
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const pan123Config = netdiskConfig?.Pan123;
       if (
         !pan123Config?.Enabled ||
         !pan123Config.Account ||
@@ -726,8 +745,10 @@ export async function GET(request: NextRequest) {
         throw new Error('123网盘未配置或未启用');
       }
 
+      const ownerKey = netdiskOwnerKey('Pan123', pan123Config);
+
       let session =
-        refreshPan123NetdiskSession(id) || getPan123NetdiskSession(id);
+        refreshPan123NetdiskSession(id, ownerKey) || getPan123NetdiskSession(id, ownerKey);
       if (!session) {
         const payload = parsePan123NetdiskId(id);
         const { listPan123ShareVideos } = await import(
@@ -737,12 +758,15 @@ export async function GET(request: NextRequest) {
           payload.shareUrl,
           payload.passcode || ''
         );
-        session = createPan123NetdiskSession({
-          title: title || result.title,
-          shareUrl: payload.shareUrl,
-          passcode: payload.passcode,
-          files: result.files,
-        });
+        session = createPan123NetdiskSession(
+          {
+            title: title || result.title,
+            shareUrl: payload.shareUrl,
+            passcode: payload.passcode,
+            files: result.files,
+          },
+          ownerKey
+        );
       }
       if (!session) {
         throw new Error('123网盘播放信息恢复失败');
@@ -801,14 +825,16 @@ export async function GET(request: NextRequest) {
 
   if (sourceCode === NETDISK_115_SOURCE) {
     try {
-      const config = await getConfig();
-      const pan115Config = config.NetDiskConfig?.Pan115;
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const pan115Config = netdiskConfig?.Pan115;
       if (!pan115Config?.Enabled || !pan115Config.Cookie) {
         throw new Error('115网盘未配置或未启用');
       }
 
+      const ownerKey = netdiskOwnerKey('Pan115', pan115Config);
+
       let session =
-        refreshPan115NetdiskSession(id) || getPan115NetdiskSession(id);
+        refreshPan115NetdiskSession(id, ownerKey) || getPan115NetdiskSession(id, ownerKey);
       if (!session) {
         const payload = parsePan115NetdiskId(id);
         const { listPan115ShareVideos } = await import(
@@ -818,12 +844,15 @@ export async function GET(request: NextRequest) {
           payload.shareUrl,
           payload.passcode || ''
         );
-        session = createPan115NetdiskSession({
-          title: title || result.title,
-          shareUrl: payload.shareUrl,
-          passcode: payload.passcode,
-          files: result.files,
-        });
+        session = createPan115NetdiskSession(
+          {
+            title: title || result.title,
+            shareUrl: payload.shareUrl,
+            passcode: payload.passcode,
+            files: result.files,
+          },
+          ownerKey
+        );
       }
       if (!session) {
         throw new Error('115网盘播放信息恢复失败');
@@ -884,15 +913,17 @@ export async function GET(request: NextRequest) {
     sourceCode === LEGACY_QUARK_TEMP_SOURCE
   ) {
     try {
-      const config = await getConfig();
-      const quarkConfig = config.NetDiskConfig?.Quark;
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const quarkConfig = netdiskConfig?.Quark;
       if (!quarkConfig?.Enabled || !quarkConfig.Cookie) {
         throw new Error('夸克网盘未配置或未启用');
       }
       const { parseVideoFileName } = await import('@/lib/video-parser');
 
+      const ownerKey = netdiskOwnerKey('Quark', quarkConfig);
+
       let session =
-        refreshQuarkNetdiskSession(id) || getQuarkNetdiskSession(id);
+        refreshQuarkNetdiskSession(id, ownerKey) || getQuarkNetdiskSession(id, ownerKey);
       if (!session) {
         const payload = parseQuarkNetdiskId(id);
         const { listQuarkShareVideos } = await import(
@@ -903,14 +934,17 @@ export async function GET(request: NextRequest) {
           quarkConfig.Cookie,
           payload.passcode || ''
         );
-        session = createQuarkNetdiskSession({
-          title: title || result.title,
-          shareUrl: payload.shareUrl,
-          passcode: payload.passcode,
-          shareId: result.shareId,
-          shareToken: result.shareToken,
-          files: result.files,
-        });
+        session = createQuarkNetdiskSession(
+          {
+            title: title || result.title,
+            shareUrl: payload.shareUrl,
+            passcode: payload.passcode,
+            shareId: result.shareId,
+            shareToken: result.shareToken,
+            files: result.files,
+          },
+          ownerKey
+        );
       }
       if (!session) {
         throw new Error('夸克网盘播放信息恢复失败');
@@ -964,14 +998,16 @@ export async function GET(request: NextRequest) {
 
   if (sourceCode === NETDISK_UC_SOURCE) {
     try {
-      const config = await getConfig();
-      const ucConfig = config.NetDiskConfig?.UC;
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const ucConfig = netdiskConfig?.UC;
       if (!ucConfig?.Enabled || !ucConfig.Cookie) {
         throw new Error('UC网盘未配置或未启用');
       }
       const { parseVideoFileName } = await import('@/lib/video-parser');
 
-      let session = refreshUCNetdiskSession(id) || getUCNetdiskSession(id);
+      const ownerKey = netdiskOwnerKey('UC', ucConfig);
+
+      let session = refreshUCNetdiskSession(id, ownerKey) || getUCNetdiskSession(id, ownerKey);
       if (!session) {
         const payload = parseUCNetdiskId(id);
         const { listUCShareVideos } = await import('@/lib/netdisk/uc.client');
@@ -980,14 +1016,17 @@ export async function GET(request: NextRequest) {
           ucConfig.Cookie,
           payload.passcode || ''
         );
-        session = createUCNetdiskSession({
-          title: title || result.title,
-          shareUrl: payload.shareUrl,
-          passcode: payload.passcode,
-          shareId: result.shareId,
-          shareToken: result.shareToken,
-          files: result.files,
-        });
+        session = createUCNetdiskSession(
+          {
+            title: title || result.title,
+            shareUrl: payload.shareUrl,
+            passcode: payload.passcode,
+            shareId: result.shareId,
+            shareToken: result.shareToken,
+            files: result.files,
+          },
+          ownerKey
+        );
       }
       if (!session) {
         throw new Error('UC网盘播放信息恢复失败');

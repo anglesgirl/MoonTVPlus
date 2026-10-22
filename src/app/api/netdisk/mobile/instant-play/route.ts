@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from '@/lib/netdisk/effective-config';
 import { listMobileShareVideos } from '@/lib/netdisk/mobile.client';
 import { createMobileNetdiskSession } from '@/lib/netdisk/mobile-session-cache';
 import { NETDISK_MOBILE_SOURCE } from '@/lib/netdisk/source';
@@ -24,19 +24,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '分享链接不能为空' }, { status: 400 });
     }
 
-    const config = await getConfig();
-    const mobileConfig = config.NetDiskConfig?.Mobile;
+    const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+    const mobileConfig = netdiskConfig?.Mobile;
     if (!mobileConfig?.Enabled || !mobileConfig.Authorization) {
       return NextResponse.json({ error: '移动云盘未配置或未启用' }, { status: 400 });
     }
 
     const result = await listMobileShareVideos(shareUrl, mobileConfig.Authorization);
-    const session = createMobileNetdiskSession({
-      title: title || result.title,
-      shareUrl,
-      passcode,
-      files: result.files,
-    });
+    const session = createMobileNetdiskSession(
+      {
+        title: title || result.title,
+        shareUrl,
+        passcode,
+        files: result.files,
+      },
+      netdiskOwnerKey('Mobile', mobileConfig)
+    );
 
     return NextResponse.json({
       success: true,

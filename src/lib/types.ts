@@ -231,6 +231,14 @@ export interface IStorage {
   // 用户邮箱相关
   getUserEmail?(userName: string): Promise<string | null>;
   setUserEmail?(userName: string, email: string): Promise<void>;
+  // 用户个人网盘配置（结构与 AdminConfig.NetDiskConfig 相同）
+  getUserNetDiskConfig?(
+    userName: string
+  ): Promise<NonNullable<AdminConfig['NetDiskConfig']> | null>;
+  setUserNetDiskConfig?(
+    userName: string,
+    config: NonNullable<AdminConfig['NetDiskConfig']>
+  ): Promise<void>;
   getEmailNotificationPreference?(userName: string): Promise<boolean>;
   setEmailNotificationPreference?(
     userName: string,

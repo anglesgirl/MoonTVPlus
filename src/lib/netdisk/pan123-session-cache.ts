@@ -16,6 +16,11 @@ export interface Pan123NetdiskSession {
 const TTL_MS = 30 * 60 * 1000;
 const sessionStore = new Map<string, Pan123NetdiskSession>();
 
+/** scope = 凭证 ownerKey；不同网盘账号的 session 严格隔离，防串号 */
+function storeKey(id: string, scope?: string): string {
+  return scope ? `${scope}:${id}` : id;
+}
+
 export function buildPan123NetdiskId(input: { shareUrl: string; passcode?: string }) {
   return base58Encode(JSON.stringify({ shareUrl: input.shareUrl, passcode: input.passcode || '' }));
 }
@@ -43,12 +48,15 @@ function pruneExpiredSessions() {
   }
 }
 
-export function createPan123NetdiskSession(input: {
-  title: string;
-  shareUrl: string;
-  passcode?: string;
-  files: Pan123ShareVideoFile[];
-}) {
+export function createPan123NetdiskSession(
+  input: {
+    title: string;
+    shareUrl: string;
+    passcode?: string;
+    files: Pan123ShareVideoFile[];
+  },
+  scope?: string
+) {
   pruneExpiredSessions();
   const now = Date.now();
   const id = buildPan123NetdiskId({ shareUrl: input.shareUrl, passcode: input.passcode });
@@ -62,25 +70,26 @@ export function createPan123NetdiskSession(input: {
     createdAt: now,
     expiresAt: now + TTL_MS,
   };
-  sessionStore.set(id, session);
+  sessionStore.set(storeKey(id, scope), session);
   return session;
 }
 
-export function getPan123NetdiskSession(id: string): Pan123NetdiskSession | null {
+export function getPan123NetdiskSession(id: string, scope?: string): Pan123NetdiskSession | null {
   pruneExpiredSessions();
-  const session = sessionStore.get(id);
+  const key = storeKey(id, scope);
+  const session = sessionStore.get(key);
   if (!session) return null;
   if (session.expiresAt <= Date.now()) {
-    sessionStore.delete(id);
+    sessionStore.delete(key);
     return null;
   }
   return session;
 }
 
-export function refreshPan123NetdiskSession(id: string): Pan123NetdiskSession | null {
-  const session = getPan123NetdiskSession(id);
+export function refreshPan123NetdiskSession(id: string, scope?: string): Pan123NetdiskSession | null {
+  const session = getPan123NetdiskSession(id, scope);
   if (!session) return null;
   session.expiresAt = Date.now() + TTL_MS;
-  sessionStore.set(id, session);
+  sessionStore.set(storeKey(id, scope), session);
   return session;
 }

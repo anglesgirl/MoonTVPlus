@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '无效的 episodeIndex' }, { status: 400 });
     }
 
-    const { session, cookie, savePath, playMode, multiThreadPlayback } = await resolveQuarkSession(id);
+    const { session, cookie, savePath, playMode, multiThreadPlayback, ownerKey } = await resolveQuarkSession(id, authInfo.username);
     const file = session.files[episodeIndex];
     if (!file) {
       return NextResponse.json({ error: '播放文件不存在' }, { status: 404 });
@@ -189,7 +189,7 @@ export async function GET(request: NextRequest) {
       });
       session.savedFileIds[file.fid] = savedFileId;
     }
-    refreshQuarkNetdiskSession(id);
+    refreshQuarkNetdiskSession(id, ownerKey);
 
     session.playUrlCaches = session.playUrlCaches || {};
     const playUrlCacheKey = `${savedFileId}:${playMode}`;

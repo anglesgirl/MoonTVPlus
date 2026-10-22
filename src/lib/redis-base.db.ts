@@ -2432,6 +2432,36 @@ export abstract class BaseRedisStorage implements IStorage {
     userInfoCache?.delete(userName);
   }
 
+  // ---------- 用户个人网盘配置 ----------
+  async getUserNetDiskConfig(
+    userName: string
+  ): Promise<NonNullable<AdminConfig['NetDiskConfig']> | null> {
+    const raw = await this.withRetry(() =>
+      this.adapter.hGet(this.userInfoKey(userName), 'netdisk_config')
+    );
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw as string);
+    } catch {
+      return null;
+    }
+  }
+
+  async setUserNetDiskConfig(
+    userName: string,
+    config: NonNullable<AdminConfig['NetDiskConfig']>
+  ): Promise<void> {
+    await this.withRetry(() =>
+      this.adapter.hSet(
+        this.userInfoKey(userName),
+        'netdisk_config',
+        JSON.stringify(config)
+      )
+    );
+    // 清除缓存
+    userInfoCache?.delete(userName);
+  }
+
   async getEmailNotificationPreference(userName: string): Promise<boolean> {
     const userInfo = await this.getUserInfoV2(userName);
     return userInfo?.emailNotifications || false;

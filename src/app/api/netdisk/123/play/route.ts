@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from '@/lib/netdisk/effective-config';
 import { getPan123PlayInfo, listPan123ShareVideos } from '@/lib/netdisk/pan123.client';
 import {
   createPan123NetdiskSession,
@@ -33,22 +33,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '无效的 episodeIndex' }, { status: 400 });
     }
 
-    const config = await getConfig();
-    const pan123Config = config.NetDiskConfig?.Pan123;
+    const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+    const pan123Config = netdiskConfig?.Pan123;
     if (!pan123Config?.Enabled || !pan123Config.Account || !pan123Config.Password) {
       return NextResponse.json({ error: '123网盘未配置或未启用' }, { status: 400 });
     }
 
-    let session = refreshPan123NetdiskSession(sessionId) || getPan123NetdiskSession(sessionId);
+    const ownerKey = netdiskOwnerKey('Pan123', pan123Config);
+
+    let session = refreshPan123NetdiskSession(sessionId, ownerKey) || getPan123NetdiskSession(sessionId, ownerKey);
     if (!session) {
       const payload = parsePan123NetdiskId(sessionId);
       const result = await listPan123ShareVideos(payload.shareUrl, payload.passcode || '');
-      session = createPan123NetdiskSession({
-        title: result.title,
-        shareUrl: payload.shareUrl,
-        passcode: payload.passcode,
-        files: result.files,
-      });
+      session = createPan123NetdiskSession(
+        {
+          title: result.title,
+          shareUrl: payload.shareUrl,
+          passcode: payload.passcode,
+          files: result.files,
+        },
+        ownerKey
+      );
     }
 
     const file = session.files[episodeIndex];
@@ -57,7 +62,7 @@ export async function GET(request: NextRequest) {
     }
 
     const playInfo = await getPan123PlayInfo(file, pan123Config.Account, pan123Config.Password);
-    refreshPan123NetdiskSession(sessionId);
+    refreshPan123NetdiskSession(sessionId, ownerKey);
     const selectedUrl = playInfo.qualities.find((item) => item.name === quality)?.url || playInfo.url;
 
     if (format === 'json') {

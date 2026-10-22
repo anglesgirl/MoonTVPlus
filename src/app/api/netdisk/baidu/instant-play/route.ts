@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
 import { listBaiduShareVideos } from '@/lib/netdisk/baidu.client';
 import { createBaiduNetdiskSession } from '@/lib/netdisk/baidu-session-cache';
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from '@/lib/netdisk/effective-config';
 import { NETDISK_BAIDU_SOURCE } from '@/lib/netdisk/source';
 import { hasFeaturePermission } from '@/lib/permissions';
 
@@ -24,21 +24,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '分享链接不能为空' }, { status: 400 });
     }
 
-    const config = await getConfig();
-    const baiduConfig = config.NetDiskConfig?.Baidu;
+    const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+    const baiduConfig = netdiskConfig?.Baidu;
     if (!baiduConfig?.Enabled || !baiduConfig.Cookie) {
       return NextResponse.json({ error: '百度网盘未配置或未启用' }, { status: 400 });
     }
 
     const result = await listBaiduShareVideos(shareUrl, baiduConfig.Cookie, passcode || '');
-    const session = createBaiduNetdiskSession({
-      title: title || result.title,
-      shareUrl,
-      passcode,
-      files: result.files,
-      meta: result.meta,
-      cookie: result.cookie,
-    });
+    const session = createBaiduNetdiskSession(
+      {
+        title: title || result.title,
+        shareUrl,
+        passcode,
+        files: result.files,
+        meta: result.meta,
+        cookie: result.cookie,
+      },
+      netdiskOwnerKey('Baidu', baiduConfig)
+    );
 
     return NextResponse.json({
       success: true,

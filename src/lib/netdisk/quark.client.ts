@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-console */
 
+import crypto from 'node:crypto';
+
 import { getConfig, setCachedConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
@@ -15,9 +17,31 @@ const QUARK_RENEWABLE_COOKIE_NAMES: QuarkRenewableCookieName[] = [
   '__puus',
   '__pus',
 ];
-const runtimeCookieValues: Partial<Record<QuarkRenewableCookieName, string>> =
-  {};
+/** 续期值按 cookie 身份分桶存放，防不同网盘账号串用 */
+const runtimeCookieValuesByKey = new Map<
+  string,
+  Partial<Record<QuarkRenewableCookieName, string>>
+>();
 let quarkCookiePersistQueue: Promise<void> = Promise.resolve();
+
+/** cookie 身份键：去掉可续期字段后其余字段的哈希，同一账号续期前后保持不变 */
+function cookieIdentityKey(cookie: string): string {
+  const kept = normalizeQuarkCookie(cookie)
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter(
+      (part) =>
+        !QUARK_RENEWABLE_COOKIE_NAMES.some((name) =>
+          part.startsWith(`${name}=`)
+        )
+    );
+  return crypto
+    .createHash('sha256')
+    .update(kept.join(';'))
+    .digest('hex')
+    .slice(0, 16);
+}
 
 function setCookieField(cookie: string, name: string, value: string): string {
   const normalized = normalizeQuarkCookie(cookie);
@@ -35,8 +59,9 @@ function setCookieField(cookie: string, name: string, value: string): string {
 
 function applyRuntimeCookieValues(cookie: string): string {
   let updated = normalizeQuarkCookie(cookie);
+  const scoped = runtimeCookieValuesByKey.get(cookieIdentityKey(cookie));
   for (const name of QUARK_RENEWABLE_COOKIE_NAMES) {
-    const value = runtimeCookieValues[name];
+    const value = scoped?.[name];
     if (value) {
       updated = setCookieField(updated, name, value);
     }
@@ -85,9 +110,12 @@ async function persistRenewedQuarkCookie(
   );
   if (names.length === 0) return;
 
+  const identityKey = cookieIdentityKey(requestCookie);
+  const scoped = runtimeCookieValuesByKey.get(identityKey) || {};
   for (const name of names) {
-    runtimeCookieValues[name] = renewedValues[name];
+    scoped[name] = renewedValues[name];
   }
+  runtimeCookieValuesByKey.set(identityKey, scoped);
 
   quarkCookiePersistQueue = quarkCookiePersistQueue
     .catch(() => undefined)
@@ -95,7 +123,15 @@ async function persistRenewedQuarkCookie(
       try {
         const config = await getConfig();
         const quarkConfig = config.NetDiskConfig?.Quark;
-        const currentCookie = quarkConfig?.Cookie || requestCookie;
+        // 只回写站长自己的凭证：本次请求用的不是站长 cookie 时，
+        // 续期值属于该用户自己的账号，写进全局配置会串号
+        if (
+          !quarkConfig?.Cookie ||
+          cookieIdentityKey(quarkConfig.Cookie) !== identityKey
+        ) {
+          return;
+        }
+        const currentCookie = quarkConfig.Cookie;
         let updatedCookie = normalizeQuarkCookie(currentCookie);
 
         for (const name of names) {

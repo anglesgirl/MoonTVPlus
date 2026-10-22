@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from '@/lib/netdisk/effective-config';
 import { listPan123ShareVideos } from '@/lib/netdisk/pan123.client';
 import { createPan123NetdiskSession } from '@/lib/netdisk/pan123-session-cache';
 import { NETDISK_123_SOURCE } from '@/lib/netdisk/source';
@@ -24,19 +24,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '分享链接不能为空' }, { status: 400 });
     }
 
-    const config = await getConfig();
-    const pan123Config = config.NetDiskConfig?.Pan123;
+    const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+    const pan123Config = netdiskConfig?.Pan123;
     if (!pan123Config?.Enabled || !pan123Config.Account || !pan123Config.Password) {
       return NextResponse.json({ error: '123网盘未配置或未启用' }, { status: 400 });
     }
 
     const result = await listPan123ShareVideos(shareUrl, passcode || '');
-    const session = createPan123NetdiskSession({
-      title: title || result.title,
-      shareUrl,
-      passcode,
-      files: result.files,
-    });
+    const session = createPan123NetdiskSession(
+      {
+        title: title || result.title,
+        shareUrl,
+        passcode,
+        files: result.files,
+      },
+      netdiskOwnerKey('Pan123', pan123Config)
+    );
 
     return NextResponse.json({
       success: true,

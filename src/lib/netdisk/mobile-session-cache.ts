@@ -21,6 +21,11 @@ export interface MobileNetdiskSession {
 const TTL_MS = 30 * 60 * 1000;
 const sessionStore = new Map<string, MobileNetdiskSession>();
 
+/** scope = 凭证 ownerKey；不同网盘账号的 session 严格隔离，防串号 */
+function storeKey(id: string, scope?: string): string {
+  return scope ? `${scope}:${id}` : id;
+}
+
 export function buildMobileNetdiskId(input: {
   shareUrl: string;
   passcode?: string;
@@ -59,12 +64,15 @@ function pruneExpiredSessions() {
   }
 }
 
-export function createMobileNetdiskSession(input: {
-  title: string;
-  shareUrl: string;
-  passcode?: string;
-  files: MobileNetdiskSessionFile[];
-}): MobileNetdiskSession {
+export function createMobileNetdiskSession(
+  input: {
+    title: string;
+    shareUrl: string;
+    passcode?: string;
+    files: MobileNetdiskSessionFile[];
+  },
+  scope?: string
+): MobileNetdiskSession {
   pruneExpiredSessions();
   const now = Date.now();
   const id = buildMobileNetdiskId({
@@ -81,25 +89,26 @@ export function createMobileNetdiskSession(input: {
     createdAt: now,
     expiresAt: now + TTL_MS,
   };
-  sessionStore.set(session.id, session);
+  sessionStore.set(storeKey(session.id, scope), session);
   return session;
 }
 
-export function getMobileNetdiskSession(id: string): MobileNetdiskSession | null {
+export function getMobileNetdiskSession(id: string, scope?: string): MobileNetdiskSession | null {
   pruneExpiredSessions();
-  const session = sessionStore.get(id);
+  const key = storeKey(id, scope);
+  const session = sessionStore.get(key);
   if (!session) return null;
   if (session.expiresAt <= Date.now()) {
-    sessionStore.delete(id);
+    sessionStore.delete(key);
     return null;
   }
   return session;
 }
 
-export function refreshMobileNetdiskSession(id: string): MobileNetdiskSession | null {
-  const session = getMobileNetdiskSession(id);
+export function refreshMobileNetdiskSession(id: string, scope?: string): MobileNetdiskSession | null {
+  const session = getMobileNetdiskSession(id, scope);
   if (!session) return null;
   session.expiresAt = Date.now() + TTL_MS;
-  sessionStore.set(id, session);
+  sessionStore.set(storeKey(id, scope), session);
   return session;
 }

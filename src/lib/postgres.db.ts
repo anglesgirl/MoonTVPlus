@@ -63,6 +63,7 @@ export class PostgresStorage implements IStorage {
       'ALTER TABLE manga_shelf ADD COLUMN IF NOT EXISTS latest_chapter_name TEXT',
       'ALTER TABLE manga_shelf ADD COLUMN IF NOT EXISTS latest_chapter_count INTEGER',
       'ALTER TABLE manga_shelf ADD COLUMN IF NOT EXISTS unread_chapter_count INTEGER',
+      'ALTER TABLE users ADD COLUMN IF NOT EXISTS netdisk_config TEXT',
     ];
 
     for (const statement of statements) {
@@ -1029,6 +1030,47 @@ export class PostgresStorage implements IStorage {
       userInfoCache.delete(userName);
     } catch (err) {
       console.error('PostgresStorage.setUserEmail error:', err);
+      throw err;
+    }
+  }
+
+  async getUserNetDiskConfig(
+    userName: string
+  ): Promise<NonNullable<AdminConfig['NetDiskConfig']> | null> {
+    try {
+      const result = await this.db
+        .prepare('SELECT netdisk_config FROM users WHERE username = $1')
+        .bind(userName)
+        .first();
+
+      const raw = result?.netdisk_config as string | null;
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    } catch (err) {
+      console.error('PostgresStorage.getUserNetDiskConfig error:', err);
+      return null;
+    }
+  }
+
+  async setUserNetDiskConfig(
+    userName: string,
+    config: NonNullable<AdminConfig['NetDiskConfig']>
+  ): Promise<void> {
+    try {
+      await this.db
+        .prepare('UPDATE users SET netdisk_config = $1 WHERE username = $2')
+        .bind(JSON.stringify(config), userName)
+        .run();
+
+      // 清除用户信息缓存
+      const { userInfoCache } = await import('./user-cache');
+      userInfoCache.delete(userName);
+    } catch (err) {
+      console.error('PostgresStorage.setUserNetDiskConfig error:', err);
       throw err;
     }
   }

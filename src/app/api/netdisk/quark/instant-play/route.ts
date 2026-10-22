@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from '@/lib/netdisk/effective-config';
 import { listQuarkShareVideos } from '@/lib/netdisk/quark.client';
 import { createQuarkNetdiskSession } from '@/lib/netdisk/quark-session-cache';
 import { NETDISK_QUARK_SOURCE } from '@/lib/netdisk/source';
@@ -24,21 +24,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '分享链接不能为空' }, { status: 400 });
     }
 
-    const config = await getConfig();
-    const quarkConfig = config.NetDiskConfig?.Quark;
+    const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+    const quarkConfig = netdiskConfig?.Quark;
     if (!quarkConfig?.Enabled || !quarkConfig.Cookie) {
       return NextResponse.json({ error: '夸克网盘未配置或未启用' }, { status: 400 });
     }
 
     const result = await listQuarkShareVideos(shareUrl, quarkConfig.Cookie, passcode || '');
-    const session = createQuarkNetdiskSession({
-      title: title || result.title,
-      shareUrl,
-      passcode,
-      shareId: result.shareId,
-      shareToken: result.shareToken,
-      files: result.files,
-    });
+    const session = createQuarkNetdiskSession(
+      {
+        title: title || result.title,
+        shareUrl,
+        passcode,
+        shareId: result.shareId,
+        shareToken: result.shareToken,
+        files: result.files,
+      },
+      netdiskOwnerKey('Quark', quarkConfig)
+    );
 
     return NextResponse.json({
       success: true,

@@ -17,8 +17,29 @@ const UC_OPEN_API_CHANNEL = 'UCTVOFFICIALWEB';
 type UCRenewableCookieName = '__puus' | '__pus';
 
 const UC_RENEWABLE_COOKIE_NAMES: UCRenewableCookieName[] = ['__puus', '__pus'];
-const runtimeCookieValues: Partial<Record<UCRenewableCookieName, string>> = {};
+/** 续期值按 cookie 身份分桶存放，防不同网盘账号串用 */
+const runtimeCookieValuesByKey = new Map<
+  string,
+  Partial<Record<UCRenewableCookieName, string>>
+>();
 let ucCookiePersistQueue: Promise<void> = Promise.resolve();
+
+/** cookie 身份键：去掉可续期字段后其余字段的哈希，同一账号续期前后保持不变 */
+function cookieIdentityKey(cookie: string): string {
+  const kept = normalizeUCCookie(cookie)
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter(
+      (part) =>
+        !UC_RENEWABLE_COOKIE_NAMES.some((name) => part.startsWith(`${name}=`))
+    );
+  return crypto
+    .createHash('sha256')
+    .update(kept.join(';'))
+    .digest('hex')
+    .slice(0, 16);
+}
 
 function setCookieField(cookie: string, name: string, value: string): string {
   const normalized = normalizeUCCookie(cookie);
@@ -36,8 +57,9 @@ function setCookieField(cookie: string, name: string, value: string): string {
 
 function applyRuntimeCookieValues(cookie: string): string {
   let updated = normalizeUCCookie(cookie);
+  const scoped = runtimeCookieValuesByKey.get(cookieIdentityKey(cookie));
   for (const name of UC_RENEWABLE_COOKIE_NAMES) {
-    const value = runtimeCookieValues[name];
+    const value = scoped?.[name];
     if (value) {
       updated = setCookieField(updated, name, value);
     }
@@ -84,9 +106,12 @@ async function persistRenewedUCCookie(
   const names = UC_RENEWABLE_COOKIE_NAMES.filter((name) => renewedValues[name]);
   if (names.length === 0) return;
 
+  const identityKey = cookieIdentityKey(requestCookie);
+  const scoped = runtimeCookieValuesByKey.get(identityKey) || {};
   for (const name of names) {
-    runtimeCookieValues[name] = renewedValues[name];
+    scoped[name] = renewedValues[name];
   }
+  runtimeCookieValuesByKey.set(identityKey, scoped);
 
   ucCookiePersistQueue = ucCookiePersistQueue
     .catch(() => undefined)
@@ -94,7 +119,15 @@ async function persistRenewedUCCookie(
       try {
         const config = await getConfig();
         const ucConfig = config.NetDiskConfig?.UC;
-        const currentCookie = ucConfig?.Cookie || requestCookie;
+        // 只回写站长自己的凭证：本次请求用的不是站长 cookie 时，
+        // 续期值属于该用户自己的账号，写进全局配置会串号
+        if (
+          !ucConfig?.Cookie ||
+          cookieIdentityKey(ucConfig.Cookie) !== identityKey
+        ) {
+          return;
+        }
+        const currentCookie = ucConfig.Cookie;
         let updatedCookie = normalizeUCCookie(currentCookie);
 
         for (const name of names) {

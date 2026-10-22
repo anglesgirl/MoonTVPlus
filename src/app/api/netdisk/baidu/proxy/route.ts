@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '无效的 episodeIndex' }, { status: 400 });
     }
 
-    const { session, cookie } = await resolveBaiduSession(id);
+    const { session, cookie } = await resolveBaiduSession(id, authInfo.username);
     const file = session.files[episodeIndex];
     if (!file) {
       return NextResponse.json({ error: '播放文件不存在' }, { status: 404 });

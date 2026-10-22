@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '无效的 episodeIndex' }, { status: 400 });
     }
 
-    const { session, cookie, token, savePath } = await resolveUCSession(id);
+    const { session, cookie, token, savePath, ownerKey } = await resolveUCSession(id, authInfo.username);
     const file = session.files[episodeIndex];
     if (!file) {
       return NextResponse.json({ error: '播放文件不存在' }, { status: 404 });
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       });
       session.savedFileIds[file.fid] = savedFileId;
     }
-    refreshUCNetdiskSession(id);
+    refreshUCNetdiskSession(id, ownerKey);
 
     const playUrls = await getUCPlayUrls(cookie, savedFileId, token);
     const selected = playUrls.find((item) => item.name === quality) || playUrls[0];

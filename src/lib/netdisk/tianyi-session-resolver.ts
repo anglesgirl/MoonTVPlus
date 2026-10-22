@@ -1,5 +1,4 @@
-import { getConfig } from '@/lib/config';
-
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from './effective-config';
 import { listTianyiShareVideos } from './tianyi.client';
 import {
   createTianyiNetdiskSession,
@@ -8,14 +7,16 @@ import {
   refreshTianyiNetdiskSession,
 } from './tianyi-session-cache';
 
-export async function resolveTianyiSession(id: string) {
-  const config = await getConfig();
-  const tianyiConfig = config.NetDiskConfig?.Tianyi;
+export async function resolveTianyiSession(id: string, username?: string) {
+  const netdiskConfig = await getEffectiveNetDiskConfig(username);
+  const tianyiConfig = netdiskConfig?.Tianyi;
   if (!tianyiConfig?.Enabled || !tianyiConfig.Account || !tianyiConfig.Password) {
     throw new Error('天翼云盘未配置或未启用');
   }
 
-  let session = refreshTianyiNetdiskSession(id) || getTianyiNetdiskSession(id);
+  const ownerKey = netdiskOwnerKey('Tianyi', tianyiConfig);
+
+  let session = refreshTianyiNetdiskSession(id, ownerKey) || getTianyiNetdiskSession(id, ownerKey);
   if (!session) {
     const payload = parseTianyiNetdiskId(id);
     const result = await listTianyiShareVideos(
@@ -24,16 +25,19 @@ export async function resolveTianyiSession(id: string) {
       tianyiConfig.Password,
       payload.passcode || ''
     );
-    session = createTianyiNetdiskSession({
-      title: result.title,
-      shareUrl: payload.shareUrl,
-      passcode: payload.passcode,
-      shareId: result.shareId,
-      shareMode: result.shareMode,
-      isFolder: result.isFolder,
-      accessCode: result.accessCode,
-      files: result.files,
-    });
+    session = createTianyiNetdiskSession(
+      {
+        title: result.title,
+        shareUrl: payload.shareUrl,
+        passcode: payload.passcode,
+        shareId: result.shareId,
+        shareMode: result.shareMode,
+        isFolder: result.isFolder,
+        accessCode: result.accessCode,
+        files: result.files,
+      },
+      ownerKey
+    );
   }
 
   if (!session) {
@@ -44,5 +48,6 @@ export async function resolveTianyiSession(id: string) {
     session,
     account: tianyiConfig.Account,
     password: tianyiConfig.Password,
+    ownerKey,
   };
 }

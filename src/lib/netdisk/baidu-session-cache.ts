@@ -30,6 +30,11 @@ export interface BaiduNetdiskSession {
 const TTL_MS = 30 * 60 * 1000;
 const sessionStore = new Map<string, BaiduNetdiskSession>();
 
+/** scope = 凭证 ownerKey；不同网盘账号的 session 严格隔离，防串号 */
+function storeKey(id: string, scope?: string): string {
+  return scope ? `${scope}:${id}` : id;
+}
+
 export function buildBaiduNetdiskId(input: { shareUrl: string; passcode?: string }): string {
   return base58Encode(
     JSON.stringify({
@@ -64,14 +69,17 @@ function pruneExpiredSessions() {
   }
 }
 
-export function createBaiduNetdiskSession(input: {
-  title: string;
-  shareUrl: string;
-  passcode?: string;
-  files: BaiduNetdiskSessionFile[];
-  meta: BaiduNetdiskSessionMeta;
-  cookie: string;
-}): BaiduNetdiskSession {
+export function createBaiduNetdiskSession(
+  input: {
+    title: string;
+    shareUrl: string;
+    passcode?: string;
+    files: BaiduNetdiskSessionFile[];
+    meta: BaiduNetdiskSessionMeta;
+    cookie: string;
+  },
+  scope?: string
+): BaiduNetdiskSession {
   pruneExpiredSessions();
   const now = Date.now();
   const id = buildBaiduNetdiskId({ shareUrl: input.shareUrl, passcode: input.passcode });
@@ -87,25 +95,26 @@ export function createBaiduNetdiskSession(input: {
     createdAt: now,
     expiresAt: now + TTL_MS,
   };
-  sessionStore.set(id, session);
+  sessionStore.set(storeKey(id, scope), session);
   return session;
 }
 
-export function getBaiduNetdiskSession(id: string): BaiduNetdiskSession | null {
+export function getBaiduNetdiskSession(id: string, scope?: string): BaiduNetdiskSession | null {
   pruneExpiredSessions();
-  const session = sessionStore.get(id);
+  const key = storeKey(id, scope);
+  const session = sessionStore.get(key);
   if (!session) return null;
   if (session.expiresAt <= Date.now()) {
-    sessionStore.delete(id);
+    sessionStore.delete(key);
     return null;
   }
   return session;
 }
 
-export function refreshBaiduNetdiskSession(id: string): BaiduNetdiskSession | null {
-  const session = getBaiduNetdiskSession(id);
+export function refreshBaiduNetdiskSession(id: string, scope?: string): BaiduNetdiskSession | null {
+  const session = getBaiduNetdiskSession(id, scope);
   if (!session) return null;
   session.expiresAt = Date.now() + TTL_MS;
-  sessionStore.set(id, session);
+  sessionStore.set(storeKey(id, scope), session);
   return session;
 }

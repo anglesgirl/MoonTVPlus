@@ -62,6 +62,7 @@ export class D1Storage implements IStorage {
       'ALTER TABLE manga_shelf ADD COLUMN latest_chapter_name TEXT',
       'ALTER TABLE manga_shelf ADD COLUMN latest_chapter_count INTEGER',
       'ALTER TABLE manga_shelf ADD COLUMN unread_chapter_count INTEGER',
+      'ALTER TABLE users ADD COLUMN netdisk_config TEXT',
     ];
 
     for (const statement of statements) {
@@ -1887,6 +1888,46 @@ export class D1Storage implements IStorage {
       userInfoCache?.delete(userName);
     } catch (err) {
       console.error('D1Storage.setUserEmail error:', err);
+      throw err;
+    }
+  }
+
+  async getUserNetDiskConfig?(
+    userName: string
+  ): Promise<NonNullable<AdminConfig['NetDiskConfig']> | null> {
+    try {
+      const result = await this.db
+        .prepare('SELECT netdisk_config FROM users WHERE username = ?')
+        .bind(userName)
+        .first();
+
+      const raw = result?.netdisk_config as string | null;
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    } catch (err) {
+      console.error('D1Storage.getUserNetDiskConfig error:', err);
+      return null;
+    }
+  }
+
+  async setUserNetDiskConfig?(
+    userName: string,
+    config: NonNullable<AdminConfig['NetDiskConfig']>
+  ): Promise<void> {
+    try {
+      await this.db
+        .prepare('UPDATE users SET netdisk_config = ? WHERE username = ?')
+        .bind(JSON.stringify(config), userName)
+        .run();
+
+      // 清除缓存
+      userInfoCache?.delete(userName);
+    } catch (err) {
+      console.error('D1Storage.setUserNetDiskConfig error:', err);
       throw err;
     }
   }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from '@/lib/netdisk/effective-config';
 import { getTianyiSharePlayUrl } from '@/lib/netdisk/tianyi.client';
 import { listTianyiShareVideos } from '@/lib/netdisk/tianyi.client';
 import { createTianyiNetdiskSession, getTianyiNetdiskSession, parseTianyiNetdiskId, refreshTianyiNetdiskSession } from '@/lib/netdisk/tianyi-session-cache';
@@ -28,13 +28,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '无效的 episodeIndex' }, { status: 400 });
     }
 
-    const config = await getConfig();
-    const tianyiConfig = config.NetDiskConfig?.Tianyi;
+    const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+    const tianyiConfig = netdiskConfig?.Tianyi;
     if (!tianyiConfig?.Enabled || !tianyiConfig.Account || !tianyiConfig.Password) {
       return NextResponse.json({ error: '天翼云盘未配置或未启用' }, { status: 400 });
     }
 
-    let session = refreshTianyiNetdiskSession(sessionId) || getTianyiNetdiskSession(sessionId);
+    const ownerKey = netdiskOwnerKey('Tianyi', tianyiConfig);
+
+    let session = refreshTianyiNetdiskSession(sessionId, ownerKey) || getTianyiNetdiskSession(sessionId, ownerKey);
     if (!session) {
       const payload = parseTianyiNetdiskId(sessionId);
       const result = await listTianyiShareVideos(
@@ -43,16 +45,19 @@ export async function GET(request: NextRequest) {
         tianyiConfig.Password,
         payload.passcode || ''
       );
-      session = createTianyiNetdiskSession({
-        title: result.title,
-        shareUrl: payload.shareUrl,
-        passcode: payload.passcode,
-        shareId: result.shareId,
-        shareMode: result.shareMode,
-        isFolder: result.isFolder,
-        accessCode: result.accessCode,
-        files: result.files,
-      });
+      session = createTianyiNetdiskSession(
+        {
+          title: result.title,
+          shareUrl: payload.shareUrl,
+          passcode: payload.passcode,
+          shareId: result.shareId,
+          shareMode: result.shareMode,
+          isFolder: result.isFolder,
+          accessCode: result.accessCode,
+          files: result.files,
+        },
+        ownerKey
+      );
     }
 
     const file = session.files[episodeIndex];
@@ -66,7 +71,7 @@ export async function GET(request: NextRequest) {
       tianyiConfig.Account,
       tianyiConfig.Password
     );
-    refreshTianyiNetdiskSession(sessionId);
+    refreshTianyiNetdiskSession(sessionId, ownerKey);
 
     if (format === 'json') {
       return NextResponse.json({ url, headers: {} });

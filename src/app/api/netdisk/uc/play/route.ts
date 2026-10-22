@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from '@/lib/netdisk/effective-config';
 import { getUCNetdiskSession, refreshUCNetdiskSession } from '@/lib/netdisk/uc-session-cache';
 
 export const runtime = 'nodejs';
@@ -26,7 +27,9 @@ export async function GET(request: NextRequest) {
     }
 
     const proxyUrl = `/api/netdisk/uc/proxy?id=${encodeURIComponent(id)}&episodeIndex=${episodeIndex}`;
-    refreshUCNetdiskSession(id) || getUCNetdiskSession(id);
+    const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+    const ownerKey = netdiskOwnerKey('UC', netdiskConfig?.UC);
+    refreshUCNetdiskSession(id, ownerKey) || getUCNetdiskSession(id, ownerKey);
 
     if (format === 'json') {
       return NextResponse.json({ url: proxyUrl, headers: {} });

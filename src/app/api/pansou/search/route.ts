@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { requireFeaturePermission } from '@/lib/permissions';
 import { getConfig } from '@/lib/config';
+import { getEffectiveNetDiskConfig } from '@/lib/netdisk/effective-config';
 import { PansouLink, searchPansou } from '@/lib/pansou.client';
 
 export const runtime = 'nodejs';
@@ -105,8 +106,9 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // 已配置账号的网盘类型排在前面
-    const netDiskConfig = (config.NetDiskConfig || {}) as Record<
+    // 已配置账号的网盘类型排在前面（按当前用户生效配置判断）
+    const effectiveNetDisk = await getEffectiveNetDiskConfig(authResult.username);
+    const netDiskConfig = (effectiveNetDisk || {}) as Record<
       string,
       { Enabled?: boolean } | undefined
     >;

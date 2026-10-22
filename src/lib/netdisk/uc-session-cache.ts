@@ -27,6 +27,11 @@ export interface UCNetdiskSession {
 const TTL_MS = 30 * 60 * 1000;
 const sessionStore = new Map<string, UCNetdiskSession>();
 
+/** scope = 凭证 ownerKey；不同网盘账号的 session 严格隔离，防串号 */
+function storeKey(id: string, scope?: string): string {
+  return scope ? `${scope}:${id}` : id;
+}
+
 export function buildUCNetdiskId(input: { shareUrl: string; passcode?: string }) {
   return base58Encode(JSON.stringify({ shareUrl: input.shareUrl, passcode: input.passcode || '' }));
 }
@@ -54,14 +59,17 @@ function pruneExpiredSessions() {
   }
 }
 
-export function createUCNetdiskSession(input: {
-  title: string;
-  shareUrl: string;
-  passcode?: string;
-  shareId: string;
-  shareToken: string;
-  files: UCNetdiskSessionFile[];
-}): UCNetdiskSession {
+export function createUCNetdiskSession(
+  input: {
+    title: string;
+    shareUrl: string;
+    passcode?: string;
+    shareId: string;
+    shareToken: string;
+    files: UCNetdiskSessionFile[];
+  },
+  scope?: string
+): UCNetdiskSession {
   pruneExpiredSessions();
   const now = Date.now();
   const id = buildUCNetdiskId({ shareUrl: input.shareUrl, passcode: input.passcode });
@@ -78,25 +86,26 @@ export function createUCNetdiskSession(input: {
     createdAt: now,
     expiresAt: now + TTL_MS,
   };
-  sessionStore.set(id, session);
+  sessionStore.set(storeKey(id, scope), session);
   return session;
 }
 
-export function getUCNetdiskSession(id: string): UCNetdiskSession | null {
+export function getUCNetdiskSession(id: string, scope?: string): UCNetdiskSession | null {
   pruneExpiredSessions();
-  const session = sessionStore.get(id);
+  const key = storeKey(id, scope);
+  const session = sessionStore.get(key);
   if (!session) return null;
   if (session.expiresAt <= Date.now()) {
-    sessionStore.delete(id);
+    sessionStore.delete(key);
     return null;
   }
   return session;
 }
 
-export function refreshUCNetdiskSession(id: string): UCNetdiskSession | null {
-  const session = getUCNetdiskSession(id);
+export function refreshUCNetdiskSession(id: string, scope?: string): UCNetdiskSession | null {
+  const session = getUCNetdiskSession(id, scope);
   if (!session) return null;
   session.expiresAt = Date.now() + TTL_MS;
-  sessionStore.set(id, session);
+  sessionStore.set(storeKey(id, scope), session);
   return session;
 }

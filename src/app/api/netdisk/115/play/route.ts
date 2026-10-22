@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from '@/lib/netdisk/effective-config';
 import { getPan115PlayUrl } from '@/lib/netdisk/pan115.client';
 import { getPan115NetdiskSession, refreshPan115NetdiskSession } from '@/lib/netdisk/pan115-session-cache';
 import { resolvePan115Session } from '@/lib/netdisk/pan115-session-resolver';
@@ -27,15 +28,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '无效的 episodeIndex' }, { status: 400 });
     }
 
-    refreshPan115NetdiskSession(id) || getPan115NetdiskSession(id);
-    const { session, cookie } = await resolvePan115Session(id);
+    const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+    const ownerKey = netdiskOwnerKey('Pan115', netdiskConfig?.Pan115);
+    refreshPan115NetdiskSession(id, ownerKey) || getPan115NetdiskSession(id, ownerKey);
+    const { session, cookie, ownerKey: sessionOwnerKey } = await resolvePan115Session(id, authInfo.username);
     const file = session.files[episodeIndex];
     if (!file) {
       return NextResponse.json({ error: '播放文件不存在' }, { status: 404 });
     }
 
     const url = await getPan115PlayUrl(file, cookie);
-    refreshPan115NetdiskSession(id);
+    refreshPan115NetdiskSession(id, sessionOwnerKey);
 
     if (format === 'json') {
       return NextResponse.json({ url, headers: {} });

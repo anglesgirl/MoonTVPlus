@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from '@/lib/netdisk/effective-config';
 import { NETDISK_TIANYI_SOURCE } from '@/lib/netdisk/source';
 import { listTianyiShareVideos } from '@/lib/netdisk/tianyi.client';
 import { createTianyiNetdiskSession } from '@/lib/netdisk/tianyi-session-cache';
@@ -24,8 +24,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '分享链接不能为空' }, { status: 400 });
     }
 
-    const config = await getConfig();
-    const tianyiConfig = config.NetDiskConfig?.Tianyi;
+    const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+    const tianyiConfig = netdiskConfig?.Tianyi;
     if (!tianyiConfig?.Enabled || !tianyiConfig.Account || !tianyiConfig.Password) {
       return NextResponse.json({ error: '天翼云盘未配置或未启用' }, { status: 400 });
     }
@@ -36,16 +36,19 @@ export async function POST(request: NextRequest) {
       tianyiConfig.Password,
       passcode || ''
     );
-    const session = createTianyiNetdiskSession({
-      title: title || result.title,
-      shareUrl,
-      passcode,
-      shareId: result.shareId,
-      shareMode: result.shareMode,
-      isFolder: result.isFolder,
-      accessCode: result.accessCode,
-      files: result.files,
-    });
+    const session = createTianyiNetdiskSession(
+      {
+        title: title || result.title,
+        shareUrl,
+        passcode,
+        shareId: result.shareId,
+        shareMode: result.shareMode,
+        isFolder: result.isFolder,
+        accessCode: result.accessCode,
+        files: result.files,
+      },
+      netdiskOwnerKey('Tianyi', tianyiConfig)
+    );
 
     return NextResponse.json({
       success: true,

@@ -25,6 +25,11 @@ export interface TianyiNetdiskSession {
 const TTL_MS = 30 * 60 * 1000;
 const sessionStore = new Map<string, TianyiNetdiskSession>();
 
+/** scope = 凭证 ownerKey；不同网盘账号的 session 严格隔离，防串号 */
+function storeKey(id: string, scope?: string): string {
+  return scope ? `${scope}:${id}` : id;
+}
+
 export function buildTianyiNetdiskId(input: { shareUrl: string; passcode?: string }): string {
   return base58Encode(JSON.stringify({ shareUrl: input.shareUrl, passcode: input.passcode || '' }));
 }
@@ -54,16 +59,19 @@ function pruneExpiredSessions() {
   }
 }
 
-export function createTianyiNetdiskSession(input: {
-  title: string;
-  shareUrl: string;
-  passcode?: string;
-  shareId: string;
-  shareMode: string;
-  isFolder: string | number | boolean;
-  accessCode: string;
-  files: TianyiNetdiskSessionFile[];
-}) {
+export function createTianyiNetdiskSession(
+  input: {
+    title: string;
+    shareUrl: string;
+    passcode?: string;
+    shareId: string;
+    shareMode: string;
+    isFolder: string | number | boolean;
+    accessCode: string;
+    files: TianyiNetdiskSessionFile[];
+  },
+  scope?: string
+) {
   pruneExpiredSessions();
   const now = Date.now();
   const id = buildTianyiNetdiskId({ shareUrl: input.shareUrl, passcode: input.passcode });
@@ -81,25 +89,26 @@ export function createTianyiNetdiskSession(input: {
     createdAt: now,
     expiresAt: now + TTL_MS,
   };
-  sessionStore.set(id, session);
+  sessionStore.set(storeKey(id, scope), session);
   return session;
 }
 
-export function getTianyiNetdiskSession(id: string): TianyiNetdiskSession | null {
+export function getTianyiNetdiskSession(id: string, scope?: string): TianyiNetdiskSession | null {
   pruneExpiredSessions();
-  const session = sessionStore.get(id);
+  const key = storeKey(id, scope);
+  const session = sessionStore.get(key);
   if (!session) return null;
   if (session.expiresAt <= Date.now()) {
-    sessionStore.delete(id);
+    sessionStore.delete(key);
     return null;
   }
   return session;
 }
 
-export function refreshTianyiNetdiskSession(id: string): TianyiNetdiskSession | null {
-  const session = getTianyiNetdiskSession(id);
+export function refreshTianyiNetdiskSession(id: string, scope?: string): TianyiNetdiskSession | null {
+  const session = getTianyiNetdiskSession(id, scope);
   if (!session) return null;
   session.expiresAt = Date.now() + TTL_MS;
-  sessionStore.set(id, session);
+  sessionStore.set(storeKey(id, scope), session);
   return session;
 }

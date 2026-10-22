@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from '@/lib/netdisk/effective-config';
 import { NETDISK_UC_SOURCE } from '@/lib/netdisk/source';
 import { listUCShareVideos } from '@/lib/netdisk/uc.client';
 import { createUCNetdiskSession } from '@/lib/netdisk/uc-session-cache';
@@ -24,21 +24,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '分享链接不能为空' }, { status: 400 });
     }
 
-    const config = await getConfig();
-    const ucConfig = config.NetDiskConfig?.UC;
+    const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+    const ucConfig = netdiskConfig?.UC;
     if (!ucConfig?.Enabled || !ucConfig.Cookie) {
       return NextResponse.json({ error: 'UC网盘未配置或未启用' }, { status: 400 });
     }
 
     const result = await listUCShareVideos(shareUrl, ucConfig.Cookie, passcode || '');
-    const session = createUCNetdiskSession({
-      title: title || result.title,
-      shareUrl,
-      passcode,
-      shareId: result.shareId,
-      shareToken: result.shareToken,
-      files: result.files,
-    });
+    const session = createUCNetdiskSession(
+      {
+        title: title || result.title,
+        shareUrl,
+        passcode,
+        shareId: result.shareId,
+        shareToken: result.shareToken,
+        files: result.files,
+      },
+      netdiskOwnerKey('UC', ucConfig)
+    );
 
     return NextResponse.json({
       success: true,

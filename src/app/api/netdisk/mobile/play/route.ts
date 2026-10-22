@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getEffectiveNetDiskConfig, netdiskOwnerKey } from '@/lib/netdisk/effective-config';
 import {
   getMobileShareDownloadUrl,
   getMobileSharePlayUrl,
@@ -37,22 +37,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '无效的 episodeIndex' }, { status: 400 });
     }
 
-    const config = await getConfig();
-    const mobileConfig = config.NetDiskConfig?.Mobile;
+    const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+    const mobileConfig = netdiskConfig?.Mobile;
     if (!mobileConfig?.Enabled || !mobileConfig.Authorization) {
       return NextResponse.json({ error: '移动云盘未配置或未启用' }, { status: 400 });
     }
 
-    let session = refreshMobileNetdiskSession(sessionId) || getMobileNetdiskSession(sessionId);
+    const ownerKey = netdiskOwnerKey('Mobile', mobileConfig);
+
+    let session = refreshMobileNetdiskSession(sessionId, ownerKey) || getMobileNetdiskSession(sessionId, ownerKey);
     if (!session) {
       const payload = parseMobileNetdiskId(sessionId);
       const result = await listMobileShareVideos(payload.shareUrl, mobileConfig.Authorization);
-      session = createMobileNetdiskSession({
-        title: result.title,
-        shareUrl: payload.shareUrl,
-        passcode: payload.passcode,
-        files: result.files,
-      });
+      session = createMobileNetdiskSession(
+        {
+          title: result.title,
+          shareUrl: payload.shareUrl,
+          passcode: payload.passcode,
+          files: result.files,
+        },
+        ownerKey
+      );
     }
 
     const file = session.files[episodeIndex];
@@ -74,7 +79,7 @@ export async function GET(request: NextRequest) {
         mobileConfig.Authorization
       );
     }
-    refreshMobileNetdiskSession(sessionId);
+    refreshMobileNetdiskSession(sessionId, ownerKey);
 
     if (format === 'json') {
       return NextResponse.json({ url, headers: {} });

@@ -34,6 +34,11 @@ export interface QuarkNetdiskSession {
 const TTL_MS = 30 * 60 * 1000;
 const sessionStore = new Map<string, QuarkNetdiskSession>();
 
+/** scope = 凭证 ownerKey；不同网盘账号的 session 严格隔离，防串号 */
+function storeKey(id: string, scope?: string): string {
+  return scope ? `${scope}:${id}` : id;
+}
+
 export function buildQuarkNetdiskId(input: { shareUrl: string; passcode?: string }): string {
   return base58Encode(
     JSON.stringify({
@@ -68,14 +73,17 @@ function pruneExpiredSessions() {
   }
 }
 
-export function createQuarkNetdiskSession(input: {
-  title: string;
-  shareUrl: string;
-  passcode?: string;
-  shareId: string;
-  shareToken: string;
-  files: QuarkNetdiskSessionFile[];
-}): QuarkNetdiskSession {
+export function createQuarkNetdiskSession(
+  input: {
+    title: string;
+    shareUrl: string;
+    passcode?: string;
+    shareId: string;
+    shareToken: string;
+    files: QuarkNetdiskSessionFile[];
+  },
+  scope?: string
+): QuarkNetdiskSession {
   pruneExpiredSessions();
   const now = Date.now();
   const id = buildQuarkNetdiskId({ shareUrl: input.shareUrl, passcode: input.passcode });
@@ -93,25 +101,26 @@ export function createQuarkNetdiskSession(input: {
     createdAt: now,
     expiresAt: now + TTL_MS,
   };
-  sessionStore.set(id, session);
+  sessionStore.set(storeKey(id, scope), session);
   return session;
 }
 
-export function getQuarkNetdiskSession(id: string): QuarkNetdiskSession | null {
+export function getQuarkNetdiskSession(id: string, scope?: string): QuarkNetdiskSession | null {
   pruneExpiredSessions();
-  const session = sessionStore.get(id);
+  const key = storeKey(id, scope);
+  const session = sessionStore.get(key);
   if (!session) return null;
   if (session.expiresAt <= Date.now()) {
-    sessionStore.delete(id);
+    sessionStore.delete(key);
     return null;
   }
   return session;
 }
 
-export function refreshQuarkNetdiskSession(id: string): QuarkNetdiskSession | null {
-  const session = getQuarkNetdiskSession(id);
+export function refreshQuarkNetdiskSession(id: string, scope?: string): QuarkNetdiskSession | null {
+  const session = getQuarkNetdiskSession(id, scope);
   if (!session) return null;
   session.expiresAt = Date.now() + TTL_MS;
-  sessionStore.set(id, session);
+  sessionStore.set(storeKey(id, scope), session);
   return session;
 }
