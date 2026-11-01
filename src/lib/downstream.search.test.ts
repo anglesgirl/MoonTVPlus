@@ -13,7 +13,7 @@ describe('search pagination cache', () => {
     const originalFetch = global.fetch;
     const mockFetch = jest.fn(async (url: string) => ({
       ok: true,
-      json: async () => ({
+      text: async () => JSON.stringify({
         pagecount: 2,
         list: (url.includes('pg=2') ? ['1', '2'] : ['1']).map(id => ({
           vod_id: id, vod_name: '进击的巨人', vod_pic: '',

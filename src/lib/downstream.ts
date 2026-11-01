@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { API_CONFIG, ApiSite, getConfig } from '@/lib/config';
+import { parseJsonLosslessIntegers } from '@/lib/json';
 import { getCachedSearchPage, setCachedSearchPage } from '@/lib/search-cache';
 import { deduplicateSearchResults } from '@/lib/search-results';
 import { SearchResult } from '@/lib/types';
 import { cleanHtmlTags } from '@/lib/utils';
 
 interface ApiSearchItem {
-  vod_id: string;
+  vod_id: string | number;
   vod_name: string;
   vod_pic: string;
   vod_remarks?: string;
@@ -59,7 +60,7 @@ async function searchWithCache(
       return { results: [] };
     }
 
-    const data = await response.json();
+    const data = parseJsonLosslessIntegers<any>(await response.text());
     if (
       !data ||
       !data.list ||
@@ -227,7 +228,7 @@ export async function getDetailFromApi(
     throw new Error(`详情请求失败: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data = parseJsonLosslessIntegers<any>(await response.text());
 
   if (
     !data ||
@@ -315,7 +316,7 @@ export async function getDetailFromApiV2(
     throw new Error(`详情请求失败: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data = parseJsonLosslessIntegers<any>(await response.text());
 
   if (
     !data ||

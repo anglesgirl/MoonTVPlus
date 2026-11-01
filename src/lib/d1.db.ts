@@ -46,12 +46,10 @@ import { dispatchNotificationChannels } from './notification-dispatch';
  */
 export class D1Storage implements IStorage {
   private db: DatabaseAdapter;
-  private schemaReady: Promise<void>;
   public adapter: RedisHashAdapter;
 
   constructor(adapter: DatabaseAdapter) {
     this.db = adapter;
-    this.schemaReady = this.ensureMangaShelfColumns();
     // 创建 Redis Hash 兼容适配器用于设备管理
     this.adapter = new RedisHashAdapter(adapter);
   }
@@ -120,9 +118,9 @@ export class D1Storage implements IStorage {
           INSERT INTO play_records (
             username, key, title, source_name, cover, year,
             episode_index, total_episodes, play_time, total_time,
-            save_time, search_title, new_episodes, is_anime
+            save_time, search_title, new_episodes, is_anime, is_duanju
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(username, key) DO UPDATE SET
             title = excluded.title,
             source_name = excluded.source_name,
@@ -135,7 +133,8 @@ export class D1Storage implements IStorage {
             save_time = excluded.save_time,
             search_title = excluded.search_title,
             new_episodes = excluded.new_episodes,
-            is_anime = excluded.is_anime
+            is_anime = excluded.is_anime,
+            is_duanju = COALESCE(excluded.is_duanju, play_records.is_duanju)
         `
         )
         .bind(
@@ -152,7 +151,9 @@ export class D1Storage implements IStorage {
           record.save_time,
           record.search_title || '',
           record.new_episodes || null,
-          record.is_anime ? 1 : 0
+          record.is_anime ? 1 : 0,
+          // undefined = 本次不表态（不是短剧页/判断不出），别冲掉已有的标记
+          record.is_duanju === undefined ? null : record.is_duanju ? 1 : 0
         )
         .run();
     } catch (err) {
@@ -1249,6 +1250,7 @@ export class D1Storage implements IStorage {
       search_title: row.search_title || '',
       new_episodes: row.new_episodes || undefined,
       is_anime: row.is_anime === 1 || row.is_anime === true,
+      is_duanju: row.is_duanju === 1 || row.is_duanju === true,
     };
   }
 
@@ -2236,7 +2238,6 @@ export class D1Storage implements IStorage {
     key: string
   ): Promise<MangaShelfItem | null> {
     try {
-      await this.schemaReady;
       const result = await this.db
         .prepare('SELECT * FROM manga_shelf WHERE username = ? AND key = ?')
         .bind(userName, key)
@@ -2280,7 +2281,6 @@ export class D1Storage implements IStorage {
     item: MangaShelfItem
   ): Promise<void> {
     try {
-      await this.schemaReady;
       await this.db
         .prepare(
           `
@@ -2338,7 +2338,6 @@ export class D1Storage implements IStorage {
     userName: string
   ): Promise<{ [key: string]: MangaShelfItem }> {
     try {
-      await this.schemaReady;
       const results = await this.db
         .prepare(
           'SELECT * FROM manga_shelf WHERE username = ? ORDER BY save_time DESC'

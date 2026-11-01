@@ -7,7 +7,7 @@ import type { SearchResult } from './types';
 
 const result = (source: string, id: string): SearchResult => ({
   source, id, source_name: source, title: '进击的巨人',
-  poster: '', episodes: [], year: 'unknown',
+  poster: '', episodes: [], episodes_titles: [], year: 'unknown',
 });
 
 describe('search result identity', () => {
