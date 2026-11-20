@@ -80,9 +80,11 @@ export async function getUserFeatureAccess(username?: string | null): Promise<Fe
 }
 
 export async function hasFeaturePermission(
-  username: string,
+  username: string | null | undefined,
   permission: FeaturePermissionKey
 ): Promise<boolean> {
+  // 游客（无用户名）没有任何功能权限
+  if (!username) return false;
   const accessMap = await getUserFeatureAccessMap(username);
   return accessMap[permission] === true;
 }

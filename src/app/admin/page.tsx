@@ -654,6 +654,11 @@ const UserConfig = ({
   const [revokingUserDevice, setRevokingUserDevice] = useState<string | null>(
     null
   );
+  // 游客不可观看的资源站（SiteConfig.GuestDisabledApis）
+  const [guestDisabledApis, setGuestDisabledApis] = useState<string[]>([]);
+  useEffect(() => {
+    setGuestDisabledApis(config?.SiteConfig?.GuestDisabledApis || []);
+  }, [config?.SiteConfig?.GuestDisabledApis]);
   const trimmedUserSearch = userSearch.trim();
 
   // 当前登录用户名
@@ -1044,6 +1049,34 @@ const UserConfig = ({
     );
   };
 
+  // 保存游客不可观看的资源站（SiteConfig.GuestDisabledApis）
+  const handleSaveGuestDisabledApis = async () => {
+    if (!config) return;
+    await withLoading('saveGuestDisabledApis', async () => {
+      try {
+        const res = await fetch('/api/admin/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...config,
+            SiteConfig: {
+              ...config.SiteConfig,
+              GuestDisabledApis: guestDisabledApis,
+            },
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `保存失败: ${res.status}`);
+        }
+        await refreshConfig();
+        showSuccess('游客资源站设置已保存', showAlert);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : '保存失败', showAlert);
+      }
+    });
+  };
+
   // 处理用户选择
   const handleSelectUser = useCallback((username: string, checked: boolean) => {
     setSelectedUsers((prev) => {
@@ -1412,6 +1445,87 @@ const UserConfig = ({
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* 游客不可观看的资源站 */}
+      <div>
+        <div className='flex items-center justify-between mb-3'>
+          <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+            游客不可观看的资源站
+          </h4>
+          <button
+            onClick={handleSaveGuestDisabledApis}
+            disabled={isLoading('saveGuestDisabledApis')}
+            className={`${buttonStyles.primary} ${
+              isLoading('saveGuestDisabledApis')
+                ? 'opacity-50 cursor-not-allowed'
+                : ''
+            }`}
+          >
+            {isLoading('saveGuestDisabledApis') ? '保存中...' : '保存'}
+          </button>
+        </div>
+        <p className='text-xs text-gray-500 dark:text-gray-400 mb-3'>
+          勾选后，未登录游客将无法使用这些资源站搜索和观看；不勾选则游客可用全部资源站。仅影响游客，登录用户不受影响。
+        </p>
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3'>
+          {config?.SourceConfig?.map((source) => (
+            <label
+              key={source.key}
+              className='flex items-center space-x-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors'
+            >
+              <input
+                type='checkbox'
+                checked={guestDisabledApis.includes(source.key)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setGuestDisabledApis((prev) => [...prev, source.key]);
+                  } else {
+                    setGuestDisabledApis((prev) =>
+                      prev.filter((api) => api !== source.key)
+                    );
+                  }
+                }}
+                className='rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700'
+              />
+              <div className='flex-1 min-w-0'>
+                <div className='text-sm font-medium text-gray-900 dark:text-gray-100 truncate'>
+                  {source.name}
+                </div>
+                {source.api && (
+                  <div className='text-xs text-gray-500 dark:text-gray-400 truncate'>
+                    {extractDomain(source.api)}
+                  </div>
+                )}
+              </div>
+            </label>
+          ))}
+        </div>
+        {(!config?.SourceConfig || config.SourceConfig.length === 0) && (
+          <p className='text-sm text-gray-500 dark:text-gray-400'>
+            暂无资源站
+          </p>
+        )}
+        <div className='mt-4 flex space-x-2'>
+          <button
+            onClick={() => setGuestDisabledApis([])}
+            className={buttonStyles.quickAction}
+          >
+            全不选（游客可用全部）
+          </button>
+          <button
+            onClick={() => {
+              const allApis =
+                config?.SourceConfig?.filter(
+                  (source) => !source.disabled
+                ).map((s) => s.key) || [];
+              setGuestDisabledApis(allApis);
+            }}
+            className={buttonStyles.quickAction}
+          >
+            全选（游客不可看全部）
+          </button>
         </div>
       </div>
 

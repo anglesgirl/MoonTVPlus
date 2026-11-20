@@ -14,9 +14,7 @@ export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
-  if (!authInfo || !authInfo.username) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // 游客模式：未登录也可访问，username 为 undefined 时按游客规则过滤资源站
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -254,7 +252,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const apiSites = await getAvailableApiSites(authInfo.username, specialOnly);
+    const apiSites = await getAvailableApiSites(authInfo?.username, specialOnly);
     const apiSite = apiSites.find((site) => site.key === sourceCode);
 
     if (!apiSite) {

@@ -18,10 +18,9 @@ import { yellowWords } from '@/lib/yellow';
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
+  // 游客模式：未登录也可搜索，authInfo 为 null 时 username 为 undefined，
+  // getAvailableApiSites 会按游客规则过滤资源站
   const authInfo = getAuthInfoFromCookie(request);
-  if (!authInfo || !authInfo.username) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
 
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
@@ -46,10 +45,10 @@ export async function GET(request: NextRequest) {
   const config = await getConfig();
   const apiSites = privateOnly
     ? []
-    : await getAvailableApiSites(authInfo.username, specialOnly);
+    : await getAvailableApiSites(authInfo?.username, specialOnly);
   const [hasOpenListPermission, hasEmbyPermission] = await Promise.all([
-    hasFeaturePermission(authInfo.username, 'private_library'),
-    hasFeaturePermission(authInfo.username, 'emby'),
+    hasFeaturePermission(authInfo?.username, 'private_library'),
+    hasFeaturePermission(authInfo?.username, 'emby'),
   ]);
   // 特殊源入口（/under）只搜影视源：私人影库（OpenList/Emby）不参与搜索。
   // 否则 0 个特殊源时也会去搜私人影库，既串味又要白等 20s 超时。

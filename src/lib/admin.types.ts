@@ -79,6 +79,8 @@ export interface AdminConfig {
     TurnstileSiteKey?: string; // Cloudflare Turnstile Site Key
     TurnstileSecretKey?: string; // Cloudflare Turnstile Secret Key
     DefaultUserTags?: string[]; // 新注册用户的默认用户组
+    // 游客模式：游客不可观看的资源站 key 列表（空=不限制，游客可用全部源）
+    GuestDisabledApis?: string[];
     // 求片功能配置
     EnableMovieRequest?: boolean; // 启用求片功能
     MovieRequestCooldown?: number; // 求片冷却时间（秒），默认3600

@@ -1295,6 +1295,11 @@ export async function getAvailableApiSites(
   );
 
   if (!user) {
+    // 游客：排除后台配置的游客不可观看资源站（GuestDisabledApis 为空=不限制）
+    const guestDisabled = new Set(config.SiteConfig.GuestDisabledApis || []);
+    if (guestDisabled.size > 0) {
+      return allApiSites.filter((s) => !guestDisabled.has(s.key));
+    }
     return allApiSites;
   }
 

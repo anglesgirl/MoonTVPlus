@@ -173,9 +173,7 @@ function formatNetdiskEpisodeTitle(
  */
 export async function GET(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
-  if (!authInfo || !authInfo.username) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // 游客模式：未登录也可访问，username 为 undefined 时按游客规则过滤资源站
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -190,7 +188,7 @@ export async function GET(request: NextRequest) {
 
   if (isNetdiskSource(sourceCode)) {
     const allowed = await hasFeaturePermission(
-      authInfo.username,
+      authInfo?.username,
       'netdisk_temp_play'
     );
     if (!allowed) {
@@ -467,7 +465,7 @@ export async function GET(request: NextRequest) {
 
   if (sourceCode === NETDISK_MOBILE_SOURCE) {
     try {
-      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo?.username);
       const mobileConfig = netdiskConfig?.Mobile;
       if (!mobileConfig?.Enabled || !mobileConfig.Authorization) {
         throw new Error('移动云盘未配置或未启用');
@@ -553,7 +551,7 @@ export async function GET(request: NextRequest) {
 
   if (sourceCode === NETDISK_BAIDU_SOURCE) {
     try {
-      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo?.username);
       const baiduConfig = netdiskConfig?.Baidu;
       if (!baiduConfig?.Enabled || !baiduConfig.Cookie) {
         throw new Error('百度网盘未配置或未启用');
@@ -640,7 +638,7 @@ export async function GET(request: NextRequest) {
 
   if (sourceCode === NETDISK_TIANYI_SOURCE) {
     try {
-      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo?.username);
       const tianyiConfig = netdiskConfig?.Tianyi;
       if (
         !tianyiConfig?.Enabled ||
@@ -735,7 +733,7 @@ export async function GET(request: NextRequest) {
 
   if (sourceCode === NETDISK_123_SOURCE) {
     try {
-      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo?.username);
       const pan123Config = netdiskConfig?.Pan123;
       if (
         !pan123Config?.Enabled ||
@@ -825,7 +823,7 @@ export async function GET(request: NextRequest) {
 
   if (sourceCode === NETDISK_115_SOURCE) {
     try {
-      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo?.username);
       const pan115Config = netdiskConfig?.Pan115;
       if (!pan115Config?.Enabled || !pan115Config.Cookie) {
         throw new Error('115网盘未配置或未启用');
@@ -913,7 +911,7 @@ export async function GET(request: NextRequest) {
     sourceCode === LEGACY_QUARK_TEMP_SOURCE
   ) {
     try {
-      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo?.username);
       const quarkConfig = netdiskConfig?.Quark;
       if (!quarkConfig?.Enabled || !quarkConfig.Cookie) {
         throw new Error('夸克网盘未配置或未启用');
@@ -998,7 +996,7 @@ export async function GET(request: NextRequest) {
 
   if (sourceCode === NETDISK_UC_SOURCE) {
     try {
-      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo.username);
+      const netdiskConfig = await getEffectiveNetDiskConfig(authInfo?.username);
       const ucConfig = netdiskConfig?.UC;
       if (!ucConfig?.Enabled || !ucConfig.Cookie) {
         throw new Error('UC网盘未配置或未启用');
@@ -1322,7 +1320,7 @@ export async function GET(request: NextRequest) {
 
   // 对于其他采集源，直接按 id 获取详情。
   try {
-    const apiSites = await getAvailableApiSites(authInfo.username, specialOnly);
+    const apiSites = await getAvailableApiSites(authInfo?.username, specialOnly);
     const apiSite = apiSites.find((site) => site.key === sourceCode);
 
     if (!apiSite) {
