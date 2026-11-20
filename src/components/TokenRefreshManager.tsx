@@ -163,6 +163,12 @@ export function TokenRefreshManager() {
           return response;
         }
 
+        // 游客模式：无登录 cookie 时不刷新、不跳登录，直接返回 401 由调用方处理
+        // （收藏/播放记录等用户数据接口对游客本就会返回 401，前端按未登录处理即可）
+        if (!getAuthInfoFromBrowserCookie()) {
+          return response;
+        }
+
         // 克隆响应以便读取响应体
         const clonedResponse = response.clone();
 

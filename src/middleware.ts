@@ -27,6 +27,18 @@ export async function middleware(request: NextRequest) {
     return warningUrl.pathname === pathname ? NextResponse.next() : NextResponse.redirect(warningUrl);
   }
 
+  // 游客模式：未登录时放行公开内容路径，管理/账号类路径仍需登录
+  // 开启方式：环境变量 ENABLE_GUEST=true（服务端运行时读取）
+  if (process.env.ENABLE_GUEST === 'true') {
+    const guestAuthInfo = getAuthInfoFromCookie(request);
+    if (!guestAuthInfo) {
+      if (isGuestAllowedPath(pathname)) {
+        return NextResponse.next();
+      }
+      return handleAuthFailure(request, pathname);
+    }
+  }
+
   // 从cookie获取认证信息
   const authInfo = getAuthInfoFromCookie(request);
 
@@ -163,6 +175,23 @@ function handleAuthFailure(
   const fullUrl = `${pathname}${request.nextUrl.search}`;
   loginUrl.searchParams.set('redirect', fullUrl);
   return NextResponse.redirect(loginUrl);
+}
+
+// 游客模式下不允许未登录访问的路径（管理后台与账号管理类接口）
+// 其余页面与内容接口一律放行；收藏/播放记录等用户数据接口自身会返回 401，前端按未登录处理
+function isGuestAllowedPath(pathname: string): boolean {
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+    return false;
+  }
+  const deniedApiPrefixes = [
+    '/api/admin/',
+    '/api/change-password',
+    '/api/user/',
+    '/api/auth/devices',
+    '/api/local-settings-sync',
+    '/api/telegram/bind',
+  ];
+  return !deniedApiPrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 
 // 判断是否需要跳过认证的路径
