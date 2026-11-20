@@ -26,6 +26,19 @@ export function TokenRefreshManager() {
       return;
     }
 
+    // 游客模式：开启时，无有效会话（无 cookie 或 refresh token 已过期）即视为游客，
+    // 绝不因此跳登录页；游客调收藏/播放记录等接口返回 401 由调用方按未登录处理
+    const isGuestSession = (): boolean => {
+      if ((window as any).RUNTIME_CONFIG?.ENABLE_GUEST !== true) {
+        return false;
+      }
+      const authInfo = getAuthInfoFromBrowserCookie();
+      if (!authInfo || !authInfo.refreshExpires) {
+        return true;
+      }
+      return Date.now() >= authInfo.refreshExpires;
+    };
+
     // 刷新状态管理
     let isRefreshing = false;
     let refreshPromise: Promise<boolean> | null = null;
@@ -57,6 +70,13 @@ export function TokenRefreshManager() {
               // 如果在登录页面，跳过登出和跳转逻辑
               if (isLoginPathname(window.location.pathname)) {
                 console.log('[Token] On login page, skipping logout and redirect');
+                return false;
+              }
+
+              // 游客模式：刷新失败就当游客，清掉失效的 cookie，不跳登录
+              if ((window as any).RUNTIME_CONFIG?.ENABLE_GUEST === true) {
+                console.log('[Token] Guest mode, clearing stale auth cookie instead of redirecting to login');
+                clearAuthCookie();
                 return false;
               }
 
@@ -98,6 +118,11 @@ export function TokenRefreshManager() {
 
       // Refresh Token 已过期
       if (now >= authInfo.refreshExpires) {
+        // 游客模式：过期会话当游客处理，不跳登录
+        if (isGuestSession()) {
+          console.log('[Token] Refresh token expired in guest mode, treating as guest');
+          return false;
+        }
         console.log('[Token] Refresh token expired, redirecting to login');
         if (isLoginPathname(window.location.pathname)) {
           return false;
@@ -163,9 +188,9 @@ export function TokenRefreshManager() {
           return response;
         }
 
-        // 游客模式：无登录 cookie 时不刷新、不跳登录，直接返回 401 由调用方处理
-        // （收藏/播放记录等用户数据接口对游客本就会返回 401，前端按未登录处理即可）
-        if (!getAuthInfoFromBrowserCookie()) {
+        // 游客模式：无有效会话（无 cookie 或 refresh token 已过期）时不刷新、不跳登录，
+        // 直接返回 401 由调用方处理（收藏/播放记录等用户数据接口对游客本就会返回 401）
+        if (isGuestSession()) {
           return response;
         }
 
@@ -187,6 +212,11 @@ export function TokenRefreshManager() {
 
               // 如果重试后仍然是 401，说明有问题，先登出再跳转登录
               if (response.status === 401) {
+                // 游客模式：不跳登录，直接返回 401 由调用方处理
+                if ((window as any).RUNTIME_CONFIG?.ENABLE_GUEST === true) {
+                  console.log('[Token] Still 401 after refresh in guest mode, skipping redirect');
+                  return response;
+                }
                 console.error('[Token] Still 401 after refresh, redirecting to login');
 
                 // 如果在登录页面，跳过登出和跳转逻辑

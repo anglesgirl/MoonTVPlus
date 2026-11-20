@@ -670,6 +670,22 @@ if (typeof window !== 'undefined') {
 /**
  * 通用的 fetch 函数，处理 401 状态码自动跳转登录
  */
+// 游客模式：开启时，无有效会话（无 cookie 或 refresh token 已过期）即视为游客，
+// 绝不因此跳登录页；游客调收藏/播放记录等接口返回 401 由调用方按未登录处理
+function isGuestSession(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  if ((window as any).RUNTIME_CONFIG?.ENABLE_GUEST !== true) {
+    return false;
+  }
+  const authInfo = getAuthInfoFromBrowserCookie();
+  if (!authInfo || !authInfo.refreshExpires) {
+    return true;
+  }
+  return Date.now() >= authInfo.refreshExpires;
+}
+
 export async function fetchWithAuth(
   url: string,
   options?: RequestInit
@@ -678,6 +694,11 @@ export async function fetchWithAuth(
 
   // 如果是 401 且是 token 过期，尝试刷新并重试
   if (res.status === 401) {
+    // 游客模式：无有效会话时直接返回 401，不刷新、不跳登录
+    if (isGuestSession()) {
+      return res;
+    }
+
     const text = await res.clone().text();
 
     // 只有当响应体包含 "Unauthorized" 或 "Refresh token expired" 或 "Access token expired" 时才处理
