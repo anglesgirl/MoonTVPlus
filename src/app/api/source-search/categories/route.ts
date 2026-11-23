@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    if (isTVBoxBridgeSource(sourceKey)) {
+    // TVBox 桥接是登录用户功能，游客不走此分支
+    if (authInfo?.username && isTVBoxBridgeSource(sourceKey)) {
       const data = await fetchTVBoxSourceSearchPage({
         user: authInfo.username,
         source: sourceKey,

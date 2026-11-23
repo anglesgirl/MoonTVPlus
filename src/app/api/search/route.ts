@@ -251,15 +251,16 @@ export async function GET(request: NextRequest) {
   );
 
   // TVBox 桥接源：桥接一次聚合请求跑完全部站点，这里只做收集。
-  // 桥接不可达时静默降级为空结果。
-  const bridgeSites = privateOnly
-    ? []
-    : await resolveTVBoxBridgeSites(authInfo.username, specialOnly).catch(
-        (error) => {
-          console.warn('[Search] 获取 TVBox 桥接站点失败:', error);
-          return [];
-        }
-      );
+  // 桥接不可达时静默降级为空结果。TVBox 桥接是登录用户功能，游客没有桥接站点。
+  const bridgeSites =
+    privateOnly || !authInfo?.username
+      ? []
+      : await resolveTVBoxBridgeSites(authInfo.username, specialOnly).catch(
+          (error) => {
+            console.warn('[Search] 获取 TVBox 桥接站点失败:', error);
+            return [];
+          }
+        );
 
   const bridgePromise: Promise<any[]> =
     bridgeSites.length > 0

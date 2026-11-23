@@ -124,15 +124,16 @@ export async function GET(request: NextRequest) {
       }
 
       // TVBox 桥接源：一个桥接 site 展开成一个本地源条目（tvbox:<siteKey>）。
-      // 桥接不可达时返回空数组，静默降级，不影响其它源。
-      const bridgeSites = privateOnly
-        ? []
-        : await resolveTVBoxBridgeSites(authInfo.username, specialOnly).catch(
-            (error) => {
-              console.warn('[Search WS] 获取 TVBox 桥接站点失败:', error);
-              return [];
-            }
-          );
+      // 桥接不可达时返回空数组，静默降级，不影响其它源。TVBox 桥接是登录用户功能，游客没有桥接站点。
+      const bridgeSites =
+        privateOnly || !authInfo?.username
+          ? []
+          : await resolveTVBoxBridgeSites(authInfo.username, specialOnly).catch(
+              (error) => {
+                console.warn('[Search WS] 获取 TVBox 桥接站点失败:', error);
+                return [];
+              }
+            );
 
       const totalSourceCount =
         sortedApiSites.length +

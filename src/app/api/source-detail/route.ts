@@ -173,8 +173,9 @@ export async function GET(request: NextRequest) {
   }
 
   // TVBox 桥接源：一个 site 就是一张卡，sources[] 全部当作线路放进 lines[]
+  // TVBox 桥接是登录用户功能，游客不走此分支
   const bridgeSiteKey = parseTVBoxBridgeSourceValue(sourceCode);
-  if (bridgeSiteKey) {
+  if (bridgeSiteKey && authInfo?.username) {
     try {
       const { getTVBoxBridgeEndpoint, resolveTVBoxBridgeSites, getTVBoxBridgeDetail, normalizeTVBoxBridgeDetailResult } =
         await import('@/lib/tvbox-bridge.server');

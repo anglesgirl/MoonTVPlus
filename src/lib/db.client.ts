@@ -689,6 +689,15 @@ function isGuestSession(): boolean {
   return Date.now() >= authInfo.refreshExpires;
 }
 
+/**
+ * 游客本地模式：游客模式开启且当前无有效会话时，播放记录走本机 localStorage，
+ * 与上游无数据库部署的行为一致；服务端 /api/playrecords 仍要求登录（401 不变）。
+ * 只用于播放记录（保存/读取/删除/迁移），收藏、搜索历史等用户数据不动。
+ */
+function isGuestLocalPlayRecords(): boolean {
+  return isGuestSession();
+}
+
 export async function fetchWithAuth(
   url: string,
   options?: RequestInit
@@ -817,7 +826,7 @@ async function getAllPlayRecordsRaw(): Promise<Record<string, PlayRecord>> {
   }
 
   // 数据库存储模式：使用混合缓存策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (STORAGE_TYPE !== 'localstorage' && !isGuestLocalPlayRecords()) {
     // 优先从缓存获取数据
     const cachedData = cacheManager.getCachedPlayRecords();
 
@@ -890,7 +899,7 @@ function getCachedPlayRecordsSnapshotRaw(): Record<string, PlayRecord> {
     return {};
   }
 
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (STORAGE_TYPE !== 'localstorage' && !isGuestLocalPlayRecords()) {
     const cachedRecords = cacheManager.getCachedPlayRecords();
     if (cachedRecords) {
       return cachedRecords;
@@ -976,7 +985,7 @@ export async function savePlayRecord(
   }
 
   // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (STORAGE_TYPE !== 'localstorage' && !isGuestLocalPlayRecords()) {
     // 立即更新缓存
     const cachedRecords = cacheManager.getCachedPlayRecords() || {};
     cachedRecords[key] = record;
@@ -1054,7 +1063,7 @@ export async function deletePlayRecord(
   const key = generateStorageKey(source, id);
 
   // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (STORAGE_TYPE !== 'localstorage' && !isGuestLocalPlayRecords()) {
     // 立即更新缓存
     const cachedRecords = cacheManager.getCachedPlayRecords() || {};
     delete cachedRecords[key];
@@ -1111,7 +1120,7 @@ export async function deletePlayRecords(keys: string[]): Promise<void> {
   if (uniqueKeys.length === 0) return;
 
   // 数据库存储模式：一次性乐观更新 + 一次 API 请求
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (STORAGE_TYPE !== 'localstorage' && !isGuestLocalPlayRecords()) {
     const cachedRecords = cacheManager.getCachedPlayRecords() || {};
     uniqueKeys.forEach((key) => {
       delete cachedRecords[key];
@@ -1181,7 +1190,7 @@ export async function migratePlayRecord(
     return;
   }
 
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (STORAGE_TYPE !== 'localstorage' && !isGuestLocalPlayRecords()) {
     const cachedRecords = {
       ...(cacheManager.getCachedPlayRecords() || {}),
     };

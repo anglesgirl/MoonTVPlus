@@ -17,6 +17,7 @@ import {
   HardDrive,
   Globe,
   Home,
+  LogIn,
   LogOut,
   MessageSquare,
   Monitor,
@@ -91,6 +92,10 @@ export const UserMenu: React.FC = () => {
     useState(false);
   const [isTVRemoteOpen, setIsTVRemoteOpen] = useState(false);
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(null);
+  // 认证信息是否已从 cookie 读完（读完前不判断登录态，避免已登录用户闪现登录按钮）
+  const [authLoaded, setAuthLoaded] = useState(false);
+  // 游客模式是否开启（RUNTIME_CONFIG.ENABLE_GUEST）
+  const [enableGuest, setEnableGuest] = useState(false);
   const [storageType, setStorageType] = useState<string>('localstorage');
   const [displayStorageType, setDisplayStorageType] =
     useState<string>('localstorage');
@@ -634,6 +639,8 @@ export const UserMenu: React.FC = () => {
       const displayType = runtimeConfig.DISPLAY_STORAGE_TYPE || type;
       setStorageType(type);
       setDisplayStorageType(displayType);
+      setEnableGuest(runtimeConfig.ENABLE_GUEST === true);
+      setAuthLoaded(true);
     }
   }, []);
 
@@ -1466,6 +1473,21 @@ export const UserMenu: React.FC = () => {
 
   const handleMenuClick = () => {
     setIsOpen(!isOpen);
+  };
+
+  // 游客模式下无会话时右上角显示登录按钮（仅数据库存储模式；无数据库时没有登录体系）
+  const showLoginButton =
+    authLoaded &&
+    !authInfo?.username &&
+    enableGuest &&
+    storageType !== 'localstorage';
+
+  const handleLogin = () => {
+    const redirect =
+      typeof window !== 'undefined'
+        ? window.location.pathname + window.location.search
+        : '/';
+    router.push(`/login?redirect=${encodeURIComponent(redirect)}`);
   };
 
   const handleCloseMenu = () => {
@@ -3136,14 +3158,24 @@ export const UserMenu: React.FC = () => {
           {/* 分割线 */}
           <div className='my-1 border-t border-gray-200 dark:border-gray-700'></div>
 
-          {/* 登出按钮 */}
-          <button
-            onClick={handleLogout}
-            className='w-full px-3 py-2 text-left flex items-center gap-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-sm'
-          >
-            <LogOut className='w-4 h-4' />
-            <span className='font-medium'>登出</span>
-          </button>
+          {/* 游客模式未登录时显示登录按钮，已登录时显示登出按钮 */}
+          {showLoginButton ? (
+            <button
+              onClick={handleLogin}
+              className='w-full px-3 py-2 text-left flex items-center gap-2.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors text-sm'
+            >
+              <LogIn className='w-4 h-4' />
+              <span className='font-medium'>登录</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleLogout}
+              className='w-full px-3 py-2 text-left flex items-center gap-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-sm'
+            >
+              <LogOut className='w-4 h-4' />
+              <span className='font-medium'>登出</span>
+            </button>
+          )}
 
           {/* 分割线 */}
           <div className='my-1 border-t border-gray-200 dark:border-gray-700'></div>
@@ -6277,13 +6309,24 @@ export const UserMenu: React.FC = () => {
   return (
     <>
       <div className='relative'>
-        <button
-          onClick={handleMenuClick}
-          className='w-10 h-10 p-2 rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-200/50 dark:text-gray-300 dark:hover:bg-gray-700/50 transition-colors'
-          aria-label='User Menu'
-        >
-          <User className='w-full h-full' />
-        </button>
+        {showLoginButton ? (
+          <button
+            onClick={handleLogin}
+            className='h-10 px-3 rounded-full flex items-center justify-center gap-1 text-sm font-medium text-green-600 hover:bg-gray-200/50 dark:text-green-400 dark:hover:bg-gray-700/50 transition-colors'
+            aria-label='登录'
+          >
+            <LogIn className='w-5 h-5' />
+            <span>登录</span>
+          </button>
+        ) : (
+          <button
+            onClick={handleMenuClick}
+            className='w-10 h-10 p-2 rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-200/50 dark:text-gray-300 dark:hover:bg-gray-700/50 transition-colors'
+            aria-label='User Menu'
+          >
+            <User className='w-full h-full' />
+          </button>
+        )}
         {/* 版本更新红点 */}
         {updateStatus === UpdateStatus.HAS_UPDATE && (
           <div className='absolute top-[2px] right-[2px] w-2 h-2 bg-yellow-500 rounded-full'></div>
