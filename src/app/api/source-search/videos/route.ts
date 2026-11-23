@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { API_CONFIG, getAvailableApiSites } from '@/lib/config';
 import { parseJsonLosslessIntegers } from '@/lib/json';
+import { fetchTVBoxSourceSearchPage } from '@/lib/source-search-tvbox.server';
+import { isTVBoxBridgeSource } from '@/lib/tvbox-bridge.shared';
 import { SearchResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -37,10 +39,7 @@ export async function GET(request: NextRequest) {
   const page = searchParams.get('page') || '1';
 
   if (!sourceKey) {
-    return NextResponse.json(
-      { error: '缺少参数: source' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: '缺少参数: source' }, { status: 400 });
   }
 
   if (!categoryId) {
@@ -52,6 +51,25 @@ export async function GET(request: NextRequest) {
 
   try {
     const specialOnly = request.nextUrl.searchParams.get('special') === '1';
+    // TVBox 桥接是登录用户功能，游客不走此分支
+    if (authInfo?.username && isTVBoxBridgeSource(sourceKey)) {
+      const data = await fetchTVBoxSourceSearchPage({
+        user: authInfo.username,
+        source: sourceKey,
+        specialOnly,
+        mode: 'category',
+        categoryId,
+        page: Number(page),
+        signal: request.signal,
+      });
+      if (!data) {
+        return NextResponse.json(
+          { error: '该 TVBox 源不可用' },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(data);
+    }
     const apiSites = await getAvailableApiSites(authInfo?.username, specialOnly);
     const targetSite = apiSites.find((site) => site.key === sourceKey);
 
@@ -125,9 +143,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Failed to get videos:', error);
-    return NextResponse.json(
-      { error: '获取视频列表失败' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: '获取视频列表失败' }, { status: 500 });
   }
 }
